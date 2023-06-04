@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4pssh.dir/Source/C++/Apps/Mp4Pssh/Mp4Pssh.cpp.o -o mp4pssh  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/fixaacsampledescription.dir/Source/C++/Apps/FixAacSampleDescription/FixAacSampleDescription.cpp.o -o fixaacsampledescription  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

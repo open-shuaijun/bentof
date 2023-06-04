@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4fragment.dir/Source/C++/Apps/Mp4Fragment/Mp4Fragment.cpp.o -o mp4fragment  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

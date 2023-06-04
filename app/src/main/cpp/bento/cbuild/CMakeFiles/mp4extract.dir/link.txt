@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4extract.dir/Source/C++/Apps/Mp4Extract/Mp4Extract.cpp.o -o mp4extract  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

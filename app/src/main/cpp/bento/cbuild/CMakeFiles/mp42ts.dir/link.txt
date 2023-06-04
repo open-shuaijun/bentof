@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp42ts.dir/Source/C++/Apps/Mp42Ts/Mp42Ts.cpp.o -o mp42ts  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

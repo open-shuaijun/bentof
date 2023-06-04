@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4edit.dir/Source/C++/Apps/Mp4Edit/Mp4Edit.cpp.o -o mp4edit  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

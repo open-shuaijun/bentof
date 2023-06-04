@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4decrypt.dir/Source/C++/Apps/Mp4Decrypt/Mp4Decrypt.cpp.o -o mp4decrypt  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

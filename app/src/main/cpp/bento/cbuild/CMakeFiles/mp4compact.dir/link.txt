@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4compact.dir/Source/C++/Apps/Mp4Compact/Mp4Compact.cpp.o -o mp4compact  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

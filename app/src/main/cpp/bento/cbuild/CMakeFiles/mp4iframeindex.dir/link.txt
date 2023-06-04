@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4iframeindex.dir/Source/C++/Apps/Mp4IframeIndex/Mp4IframeIndex.cpp.o -o mp4iframeindex  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

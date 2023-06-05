@@ -2,7 +2,6 @@ package com.et.bento
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.widget.TextView
 import com.et.bento.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -28,7 +27,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         // Used to load the 'bento' library on application startup.
         init {
-            System.loadLibrary("bento4")
+            System.loadLibrary("bentof")
         }
     }
 }

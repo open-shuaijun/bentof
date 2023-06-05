@@ -1,50 +1,162 @@
-# For more information about using CMake with Android Studio, read the
-# documentation: https://d.android.com/studio/projects/add-native-code.html
+# cmake -DCMAKE_BUILD_TYPE=Debug ..
+# cmake -DCMAKE_BUILD_TYPE=Release ..
+# 选择静态或者动态编译
+option(BUILD_SHARED "Build shared library instead of static library" ON)
 
-# Sets the minimum version of CMake required to build the native library.
+cmake_minimum_required(VERSION 3.10)
 
-cmake_minimum_required(VERSION 3.22.1)
+function(get_bento4_version)
+    file(STRINGS "Source/C++/Core/Ap4Version.h" _temp REGEX "AP4_VERSION_STRING")
+    string(REGEX MATCH "\"([^\"]+)\"" _temp "${_temp}")
+    set(BENTO4_VERSION "${CMAKE_MATCH_1}" PARENT_SCOPE)
+endfunction()
 
-# Declares and names the project.
+get_bento4_version()
+set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+project(bento4 VERSION "${BENTO4_VERSION}")
 
-project("bento4")
+# Variables
+set(SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/Source/C++)
 
-add_subdirectory(bento)
+set(SOURCE_CODECS ${SOURCE_ROOT}/Codecs)
+set(SOURCE_CORE ${SOURCE_ROOT}/Core)
+set(SOURCE_CRYPTO ${SOURCE_ROOT}/Crypto)
+set(SOURCE_METADATA ${SOURCE_ROOT}/MetaData)
+set(SOURCE_SYSTEM ${SOURCE_ROOT}/System)
+set(SOURCE_APPS ${SOURCE_ROOT}/Apps)
+set(SOURCE_BENTO4 ${SOURCE_ROOT}/bentof)
+message("-------------------------------------")
+message(${SOURCE_BENTO4})
 
-# Creates and names a library, sets it as either STATIC
-# or SHARED, and provides the relative paths to its source code.
-# You can define multiple libraries, and CMake builds them for you.
-# Gradle automatically packages shared libraries with your APK.
+# Compiler warning and optimization flags
+if (CMAKE_C_COMPILER_ID MATCHES "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-class-memaccess")
+endif ()
 
-add_library( # Sets the name of the library.
-        bento4
+if (EMSCRIPTEN)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-warn-absolute-paths")
+endif ()
 
-        # Sets the library as a shared library.
-        SHARED
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.12)
 
-        # Provides a relative path to your source file(s).
-        native-lib.cpp)
+# AP4 Library
+file(GLOB AP4_SOURCES
+        ${SOURCE_CODECS}/*.cpp
+        ${SOURCE_CORE}/*.cpp
+        ${SOURCE_CRYPTO}/*.cpp
+        ${SOURCE_METADATA}/*.cpp
+        ${SOURCE_SYSTEM}/StdC/*.cpp
+        ${SOURCE_APPS}/*.cpp
+        )
 
-# Searches for a specified prebuilt library and stores the path as a
-# variable. Because CMake includes system libraries in the search path by
-# default, you only need to specify the name of the public NDK library
-# you want to add. CMake verifies that the library exists before
-# completing its build.
+# AP4 Library
+file(GLOB BENTO4_SOURCES ${SOURCE_BENTO4}/*.cpp)
 
-find_library( # Sets the name of the path variable.
-        log-lib
+set(AP4_SOURCES ${AP4_SOURCES} ${SOURCE_SYSTEM}/Posix/Ap4PosixRandom.cpp)
 
-        # Specifies the name of the NDK library that
-        # you want CMake to locate.
-        log)
 
-# Specifies libraries CMake should link to your target library. You
-# can link multiple libraries, such as libraries you define in this
-# build script, prebuilt third-party libraries, or system libraries.
+# Includes
+set(AP4_INCLUDE_DIRS
+        ${SOURCE_CORE}
+        ${SOURCE_CODECS}
+        ${SOURCE_CRYPTO}
+        ${SOURCE_METADATA}
+        ${SOURCE_BENTO4}
+        ${SOURCE_APPS}
+        )
 
-target_link_libraries( # Specifies the target library.
-        bento4
+file(GLOB AP4_HEADERS
+        ${SOURCE_CORE}/*.h
+        ${SOURCE_CODECS}/*.h
+        ${SOURCE_CRYPTO}/*.h
+        ${SOURCE_METADATA}/*.h
+        ${SOURCE_BENTO4}/*.h
+        ${SOURCE_APPS}/*.h
+        )
+find_library(log-lib log)
+add_library(ap4 SHARED ${AP4_SOURCES})
+add_library(bentof SHARED ${BENTO4_SOURCES})
 
-        # Links the target library to the log library
-        # included in the NDK.
+target_include_directories(ap4 PUBLIC ${AP4_INCLUDE_DIRS})
+target_include_directories(bentof PUBLIC ${AP4_INCLUDE_DIRS})
+
+
+# Apps
+#option(BUILD_APPS "Build example applications" ON)
+#if (BUILD_APPS)
+#    file(GLOB BENTO4_APPS RELATIVE ${SOURCE_ROOT}/Apps ${SOURCE_ROOT}/Apps/*)
+#    foreach (app ${BENTO4_APPS})
+#        #   set(app Mp4Mux)
+#        string(TOLOWER ${app} binary_name)
+#        list(APPEND BENTO4_APPS_LOWERCASE ${binary_name})
+#        #        add_executable(${binary_name} ${SOURCE_ROOT}/Apps/${app}/${app}.cpp)
+##        message("App path: ${SOURCE_APPS}/${app}")
+#        add_library(${binary_name} SHARED ${SOURCE_APPS}/${app}/${app}.cpp)
+##        set(${app}_include ${SOURCE_APPS}/${app}/${app}.h)
+#
+##        target_include_directories(${binary_name} PRIVATE ${app}_include)
+#        target_link_libraries(${binary_name} ap4)
+##        include_directories(${app}_include)
+#        target_link_libraries(bentof ${binary_name})
+#
+##        message(${app}_include)
+#
+#
+#
+#        if (MSVC)
+#            set_property(TARGET ${binary_name} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+#            target_compile_definitions(${binary_name} PRIVATE -D_CONSOLE)
+#        endif ()
+#    endforeach ()
+#endif (BUILD_APPS)
+
+
+target_link_libraries(
+        bentof
+        ap4
         ${log-lib})
+
+# Install
+#include(GNUInstallDirs)
+#set(config_install_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
+#set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
+#set(version_config "${generated_dir}/${PROJECT_NAME}ConfigVersion.cmake")
+#set(project_config "${generated_dir}/${PROJECT_NAME}Config.cmake")
+#set(TARGETS_EXPORT_NAME "${PROJECT_NAME}Targets")
+#set(namespace "${PROJECT_NAME}::")
+#
+#include(CMakePackageConfigHelpers)
+#write_basic_package_version_file(
+#        "${version_config}" COMPATIBILITY SameMajorVersion
+#)
+#
+#configure_package_config_file(
+#        "Build/cmake/Config.cmake.in"
+#        "${project_config}"
+#        INSTALL_DESTINATION "${config_install_dir}"
+#)
+#
+#install(
+#        TARGETS ap4 ${BENTO4_APPS_LOWERCASE}
+#        EXPORT "${TARGETS_EXPORT_NAME}"
+#        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+#        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+#        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+#        INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+#)
+#
+#install(
+#        FILES ${AP4_HEADERS}
+#        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/bento4"
+#)
+#
+#install(
+#        FILES "${project_config}" "${version_config}"
+#        DESTINATION "${config_install_dir}"
+#)
+#
+#install(
+#        EXPORT "${TARGETS_EXPORT_NAME}"
+#        NAMESPACE "${namespace}"
+#        DESTINATION "${config_install_dir}"
+#)

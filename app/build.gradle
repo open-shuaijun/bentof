@@ -9,12 +9,22 @@ android {
 
     defaultConfig {
         applicationId "com.et.bento"
-        minSdk 17
+        minSdk 19
         targetSdk 33
         versionCode 1
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            //noinspection ChromeOsAbiSupport,ChromeOsAbiSupport
+            abiFilters 'armeabi-v7a'
+        }
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++11"
+            }
+        }
     }
 
     buildTypes {
@@ -39,6 +49,7 @@ android {
     buildFeatures {
         viewBinding true
     }
+    ndkVersion '24.0.8215888'
 }
 
 dependencies {

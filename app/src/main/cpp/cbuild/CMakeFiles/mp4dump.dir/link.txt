@@ -1,1 +1,0 @@
-/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4dump.dir/Source/C++/Apps/Mp4Dump/Mp4Dump.cpp.o -o mp4dump  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

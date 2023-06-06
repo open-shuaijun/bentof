@@ -1,1 +1,0 @@
-/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/aac2mp4.dir/Source/C++/Apps/Aac2Mp4/Aac2Mp4.cpp.o -o aac2mp4  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

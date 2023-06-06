@@ -1,1 +1,0 @@
-/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4diff.dir/Source/C++/Apps/Mp4Diff/Mp4Diff.cpp.o -o mp4diff  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

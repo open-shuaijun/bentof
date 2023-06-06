@@ -1,1 +1,0 @@
-/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/avcinfo.dir/Source/C++/Apps/AvcInfo/AvcInfo.cpp.o -o avcinfo  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

@@ -1,1 +1,0 @@
-/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp4audioclip.dir/Source/C++/Apps/Mp4AudioClip/Mp4AudioClip.cpp.o -o mp4audioclip  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

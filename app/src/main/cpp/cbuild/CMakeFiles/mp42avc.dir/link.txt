@@ -1,1 +1,0 @@
-/usr/bin/c++  -Wall -Wno-class-memaccess CMakeFiles/mp42avc.dir/Source/C++/Apps/Mp42Avc/Mp42Avc.cpp.o -o mp42avc  -Wl,-rpath,/home/easytouch/hls/Bento4-master/cbuild: libap4.so 

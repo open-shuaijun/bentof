@@ -113,8 +113,12 @@ target_include_directories(bentof PUBLIC ${AP4_INCLUDE_DIRS})
 
 target_link_libraries(
         bentof
-        ap4
+        PUBLIC ap4
         ${log-lib})
+
+target_link_libraries(
+        ap4
+        PRIVATE ${log-lib})
 
 # Install
 #include(GNUInstallDirs)

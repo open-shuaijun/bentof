@@ -7,6 +7,7 @@
 
 #include "jni.h"
 #include "string"
+#include "android/log.h"
 #include "../Apps/Mp4Mux.h"
 
 #endif //BENTO_BENTOF_H

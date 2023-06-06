@@ -116,7 +116,7 @@ AP4_Result Mp4Mux::ParseParameters(const char *params_str, AP4_Array<Parameter> 
 +---------------------------------------------------------------------*/
 AP4_Result
 Mp4Mux::ComputeDoviLevel(AP4_UI32 video_width, AP4_UI32 video_height, double frame_rate,
-                 AP4_UI32 &dv_level) {
+                         AP4_UI32 &dv_level) {
     double level = video_width * video_height * frame_rate;
 
     if (level <= 1280 * 720 * 24) {
@@ -337,9 +337,9 @@ Mp4Mux::GetLanguageFromParameters(AP4_Array<Parameter> &parameters, const char *
 +---------------------------------------------------------------------*/
 void
 Mp4Mux::AddAacTrack(AP4_Movie &movie,
-            const char *input_name,
-            AP4_Array<Parameter> &parameters,
-            SampleFileStorage &sample_storage) {
+                    const char *input_name,
+                    AP4_Array<Parameter> &parameters,
+                    SampleFileStorage &sample_storage) {
     AP4_ByteStream *input;
     AP4_Result result = AP4_FileByteStream::Create(input_name, AP4_FileByteStream::STREAM_MODE_READ,
                                                    input);
@@ -478,9 +478,9 @@ Mp4Mux::AddAacTrack(AP4_Movie &movie,
  +---------------------------------------------------------------------*/
 void
 Mp4Mux::AddAc3Track(AP4_Movie &movie,
-            const char *input_name,
-            AP4_Array<Parameter> &parameters,
-            SampleFileStorage &sample_storage) {
+                    const char *input_name,
+                    AP4_Array<Parameter> &parameters,
+                    SampleFileStorage &sample_storage) {
     AP4_ByteStream *input;
     AP4_Result result = AP4_FileByteStream::Create(input_name, AP4_FileByteStream::STREAM_MODE_READ,
                                                    input);
@@ -619,9 +619,9 @@ Mp4Mux::AddAc3Track(AP4_Movie &movie,
 +---------------------------------------------------------------------*/
 void
 Mp4Mux::AddEac3Track(AP4_Movie &movie,
-             const char *input_name,
-             AP4_Array<Parameter> &parameters,
-             SampleFileStorage &sample_storage) {
+                     const char *input_name,
+                     AP4_Array<Parameter> &parameters,
+                     SampleFileStorage &sample_storage) {
     AP4_ByteStream *input;
     AP4_Result result = AP4_FileByteStream::Create(input_name, AP4_FileByteStream::STREAM_MODE_READ,
                                                    input);
@@ -772,9 +772,9 @@ Mp4Mux::AddEac3Track(AP4_Movie &movie,
 |   AddAc4Track
 +---------------------------------------------------------------------*/
 void Mp4Mux::AddAc4Track(AP4_Movie &movie,
-            const char *input_name,
-            AP4_Array<Parameter> &parameters,
-            SampleFileStorage &sample_storage) {
+                         const char *input_name,
+                         AP4_Array<Parameter> &parameters,
+                         SampleFileStorage &sample_storage) {
     AP4_ByteStream *input;
     AP4_Result result = AP4_FileByteStream::Create(input_name, AP4_FileByteStream::STREAM_MODE_READ,
                                                    input);
@@ -927,10 +927,10 @@ void Mp4Mux::AddAc4Track(AP4_Movie &movie,
 |   AddH264Track
 +---------------------------------------------------------------------*/
 void Mp4Mux::AddH264Track(AP4_Movie &movie,
-             const char *input_name,
-             AP4_Array<Parameter> &parameters,
-             AP4_Array<AP4_UI32> &brands,
-             SampleFileStorage &sample_storage) {
+                          const char *input_name,
+                          AP4_Array<Parameter> &parameters,
+                          AP4_Array<AP4_UI32> &brands,
+                          SampleFileStorage &sample_storage) {
     AP4_ByteStream *input;
     AP4_Result result = AP4_FileByteStream::Create(input_name, AP4_FileByteStream::STREAM_MODE_READ,
                                                    input);
@@ -1167,10 +1167,10 @@ void Mp4Mux::AddH264Track(AP4_Movie &movie,
 |   AddH264DoviTrack
 +---------------------------------------------------------------------*/
 void Mp4Mux::AddH264DoviTrack(AP4_Movie &movie,
-                 const char *input_name,
-                 AP4_Array<Parameter> &parameters,
-                 AP4_Array<AP4_UI32> &brands,
-                 SampleFileStorage &sample_storage) {
+                              const char *input_name,
+                              AP4_Array<Parameter> &parameters,
+                              AP4_Array<AP4_UI32> &brands,
+                              SampleFileStorage &sample_storage) {
     double frame_rate = 0.0;
     //based on the Dovi iso spec, set the following values to const 
     const AP4_UI32 dv_major_version = 1;
@@ -1459,10 +1459,10 @@ void Mp4Mux::AddH264DoviTrack(AP4_Movie &movie,
 +---------------------------------------------------------------------*/
 void
 Mp4Mux::AddH265Track(AP4_Movie &movie,
-             const char *input_name,
-             AP4_Array<Parameter> &parameters,
-             AP4_Array<AP4_UI32> &brands,
-             SampleFileStorage &sample_storage) {
+                     const char *input_name,
+                     AP4_Array<Parameter> &parameters,
+                     AP4_Array<AP4_UI32> &brands,
+                     SampleFileStorage &sample_storage) {
     unsigned int video_width = 0;
     unsigned int video_height = 0;
     AP4_UI32 format = AP4_SAMPLE_FORMAT_HVC1;
@@ -1744,10 +1744,10 @@ Mp4Mux::AddH265Track(AP4_Movie &movie,
 |   AddH265DoviTrack
 +---------------------------------------------------------------------*/
 void Mp4Mux::AddH265DoviTrack(AP4_Movie &movie,
-                 const char *input_name,
-                 AP4_Array<Parameter> &parameters,
-                 AP4_Array<AP4_UI32> &brands,
-                 SampleFileStorage &sample_storage) {
+                              const char *input_name,
+                              AP4_Array<Parameter> &parameters,
+                              AP4_Array<AP4_UI32> &brands,
+                              SampleFileStorage &sample_storage) {
     AP4_UI32 video_width = 0;
     AP4_UI32 video_height = 0;
     double frame_rate = 0.0;
@@ -2096,9 +2096,9 @@ void Mp4Mux::AddH265DoviTrack(AP4_Movie &movie,
 |   AddMp4Tracks
 +---------------------------------------------------------------------*/
 void Mp4Mux::AddMp4Tracks(AP4_Movie &movie,
-             const char *input_name,
-             AP4_Array<Parameter> &parameters,
-             AP4_Array<AP4_UI32> &  /*brands*/) {
+                          const char *input_name,
+                          AP4_Array<Parameter> &parameters,
+                          AP4_Array<AP4_UI32> &  /*brands*/) {
     // open the input
     AP4_ByteStream *input_stream = NULL;
     AP4_Result result = AP4_FileByteStream::Create(input_name,
@@ -2180,10 +2180,12 @@ void Mp4Mux::AddMp4Tracks(AP4_Movie &movie,
 /*----------------------------------------------------------------------
 |   main
 +---------------------------------------------------------------------*/
-int
+string
 Mp4Mux::main_func(int argc, char **argv) {
+
+    char msg[256];
     if (argc < 2) {
-        PrintUsageAndExit();
+        return "缺少必要的参数";
     }
     Options.verbose = false;
 
@@ -2198,18 +2200,21 @@ Mp4Mux::main_func(int argc, char **argv) {
         } else if (output_filename == NULL) {
             output_filename = arg;
         } else {
-            fprintf(stderr, "ERROR: unexpected argument '%s'\n", arg);
-            return 1;
+            sprintf(msg,
+                    "ERROR: unexpected argument '%s'  input_names='%d'  output_filename='%s' .end\n",
+                    arg, input_names.ItemCount(), output_filename);
+            break;
         }
     }
 
+
     if (input_names.ItemCount() == 0) {
-        fprintf(stderr, "ERROR: no input\n");
-        return 1;
+        sprintf(msg, "ERROR: no input\n");
+        return msg;
     }
     if (output_filename == NULL) {
-        fprintf(stderr, "ERROR: output filename missing\n");
-        return 1;
+        sprintf(msg, "ERROR: output filename missing\n");
+        return msg;
     }
 
     // create the movie object to hold the tracks
@@ -2230,8 +2235,8 @@ Mp4Mux::main_func(int argc, char **argv) {
     SampleFileStorage *sample_storage = NULL;
     AP4_Result result = SampleFileStorage::Create(output_filename, sample_storage);
     if (AP4_FAILED(result)) {
-        fprintf(stderr, "ERROR: failed to create temporary sample data storage (%d)\n", result);
-        return 1;
+        sprintf(msg, "ERROR: failed to create temporary sample data storage (%d)\n", result);
+        return msg;
     }
 
     // add all the tracks
@@ -2262,25 +2267,19 @@ Mp4Mux::main_func(int argc, char **argv) {
                 for (unsigned int j = 1; separator[j]; j++) {
                     separator[j] = (char) tolower(separator[j]);
                 }
-                if (!strcmp("264", input_type)) {
+                if (!strcmp("264", input_type) || !strcmp("avc", input_type)) {
                     input_type = "h264";
-                } else if (!strcmp("avc", input_type)) {
-                    input_type = "h264";
-                } else if (!strcmp("265", input_type)) {
+                } else if (!strcmp("265", input_type) || !strcmp("hevc", input_type)) {
                     input_type = "h265";
-                } else if (!strcmp("hevc", input_type)) {
-                    input_type = "h265";
-                } else if (!strcmp("adts", input_type)) {
-                    input_type = "aac";
-                } else if (!strcmp("m4a", input_type) ||
+                } else if (!strcmp("adts", input_type) || !strcmp("m4a", input_type) ||
                            !strcmp("m4v", input_type) ||
                            !strcmp("mov", input_type)) {
                     input_type = "aac";
                 }
             } else {
-                fprintf(stderr, "ERROR: unable to determine type for input '%s'\n", input_name);
+                sprintf(msg, "ERROR: unable to determine type for input '%s'\n", input_name);
                 delete sample_storage;
-                return 1;
+                return msg;
             }
         }
 
@@ -2291,16 +2290,16 @@ Mp4Mux::main_func(int argc, char **argv) {
         }
 
         bool isDovi = false;
-        for (unsigned int i = 0; i < parameters.ItemCount(); i++) {
-            if (parameters[i].m_Name == "dv_profile") {
+        for (unsigned int idx = 0; idx < parameters.ItemCount(); idx++) {
+            if (parameters[idx].m_Name == "dv_profile") {
                 isDovi = true;
             }
-            if (parameters[i].m_Name == "dv_bc") {
-                if (parameters[i].m_Value == "1") {
+            if (parameters[idx].m_Name == "dv_bc") {
+                if (parameters[idx].m_Value == "1") {
                     dolby_vision_ccid |= 0x1;
-                } else if (parameters[i].m_Value == "2") {
+                } else if (parameters[idx].m_Value == "2") {
                     dolby_vision_ccid |= 0x2;
-                } else if (parameters[i].m_Value == "4") {
+                } else if (parameters[idx].m_Value == "4") {
                     dolby_vision_ccid |= 0x4;
                 }
             }
@@ -2309,9 +2308,9 @@ Mp4Mux::main_func(int argc, char **argv) {
         if (!strcmp(input_type, "h264")) {
             if (isDovi) {
                 if (CheckDoviInputParameters(parameters) != AP4_SUCCESS) {
-                    fprintf(stderr, "ERROR: dolby vision input parameter error\n");
+                    sprintf(msg, "ERROR: dolby vision input parameter error\n");
                     delete sample_storage;
-                    return 1;
+                    return msg;
                 } else {
                     AddH264DoviTrack(*movie, input_name, parameters, brands, *sample_storage);
                     hasDovi = true;
@@ -2322,9 +2321,9 @@ Mp4Mux::main_func(int argc, char **argv) {
         } else if (!strcmp(input_type, "h265")) {
             if (isDovi) {
                 if (CheckDoviInputParameters(parameters) != AP4_SUCCESS) {
-                    fprintf(stderr, "ERROR: dolby vision input parameter error\n");
+                    sprintf(msg, "ERROR: dolby vision input parameter error\n");
                     delete sample_storage;
-                    return 1;
+                    return msg;
                 } else {
                     AddH265DoviTrack(*movie, input_name, parameters, brands, *sample_storage);
                     hasDovi = true;
@@ -2332,6 +2331,7 @@ Mp4Mux::main_func(int argc, char **argv) {
             } else {
                 AddH265Track(*movie, input_name, parameters, brands, *sample_storage);
             }
+
         } else if (!strcmp(input_type, "aac")) {
             AddAacTrack(*movie, input_name, parameters, *sample_storage);
         } else if (!strcmp(input_type, "ac3")) {
@@ -2343,9 +2343,9 @@ Mp4Mux::main_func(int argc, char **argv) {
         } else if (!strcmp(input_type, "mp4")) {
             AddMp4Tracks(*movie, input_name, parameters, brands);
         } else {
-            fprintf(stderr, "ERROR: unsupported input type '%s'\n", input_type);
+            sprintf(msg, "ERROR: unsupported input type '%s'\n", input_type);
             delete sample_storage;
-            return 1;
+            return msg;
         }
     }
 
@@ -2353,6 +2353,7 @@ Mp4Mux::main_func(int argc, char **argv) {
     if (hasDovi) {
         brands.Append(AP4_FILE_BRAND_DBY1);
     }
+
     // brand of Dolby Vision with CCID == 4 needs transfer characteristic to be decided later
     if (dolby_vision_ccid & 0x1) {
         brands.Append(AP4_FILE_BRAND_DB1P);
@@ -2367,32 +2368,53 @@ Mp4Mux::main_func(int argc, char **argv) {
     AP4_ByteStream *output = NULL;
     result = AP4_FileByteStream::Create(output_filename, AP4_FileByteStream::STREAM_MODE_WRITE,
                                         output);
+
     if (AP4_FAILED(result)) {
         AP4_Debug("ERROR: cannot open output '%s' (%d)\n", output_filename, result);
+        sprintf(msg, "ERROR: cannot open output '%s' (%d)\n", output_filename, result);
         delete sample_storage;
-        return 1;
+        return msg;
     }
-
     {
         // create a multimedia file
         AP4_File file(movie);
-
         // set the file type
         file.SetFileType(AP4_FILE_BRAND_MP42, 1, &brands[0], brands.ItemCount());
-
         // write the file to the output
         AP4_FileWriter::Write(file, *output);
     }
-
     // cleanup
     delete sample_storage;
     output->Release();
 
-    return 0;
+    return "success";
 }
 
-string Mp4Mux::bboxh264(const string& path) {
-//    __android_log_print(ANDROID_LOG_DEBUG,"TAG", "ssssssssssssssfr544ssss");
-
-    return "derdfred";
+/**
+ * 视频包装 H.264->mp4
+ * */
+string Mp4Mux::bboxh264(char **argv) {
+    auto t = std::chrono::steady_clock::now();
+    string ret = main_func(3, argv);
+    auto hs = std::chrono::steady_clock::now();
+    auto cs = std::chrono::duration_cast<std::chrono::milliseconds>(hs - t).count();
+    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "视频包装耗时:%lld ms", cs);
+    return ret;
 }
+
+/**
+ * 视频转换格式 mp4->m3u8
+ * */
+
+string funcc() {
+    auto t = std::chrono::steady_clock::now();
+    string ret = main_func(3, argv);
+    auto hs = std::chrono::steady_clock::now();
+
+    auto cs = std::chrono::duration_cast<std::chrono::milliseconds>(hs - t).count();
+
+    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "视频转换耗时:%lld ms", cs);
+    return "success";
+}
+
+

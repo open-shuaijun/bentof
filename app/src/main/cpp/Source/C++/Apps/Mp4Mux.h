@@ -12,6 +12,7 @@
 #include <time.h>
 #include <string>
 #include "android/log.h"
+#include "chrono"
 
 #define BENTO_MP4MAKER_H
 
@@ -97,7 +98,8 @@ public:
         return ins;
     };
 
-    string bboxh264(const string &path);
+//    string bboxh264(const string &path);
+    string bboxh264(char** agrv);
 
     void PrintUsageAndExit();
 
@@ -108,7 +110,8 @@ public:
     void AddAc3Track(AP4_Movie &movie, const char *input_name, AP4_Array<Parameter> &parameters,
                      SampleFileStorage &sample_storage);
 
-    int main_func(int argc, char **argv);
+    string main_func(int argc, char **argv);
+//    int main_func(char *input_path, char *out_path);
 
     void
     AddMp4Tracks(AP4_Movie &movie, const char *input_name, AP4_Array<Parameter> &parameters,

@@ -8,61 +8,67 @@
 using namespace std;
 
 extern "C" JNIEXPORT jstring
-Java_com_et_bentof_Bentof_mp4mux(JNIEnv *env, jobject /* this */) {
-    string pro = "mux";
-    string cmd = "--track";
-    string src = "/sdcard/test.h264";
-    string out = "/sdcard/out1.mp4";
+Java_com_et_bentof_Bentof_mp4mux(JNIEnv *env, jobject /* this */, jstring h264_path,
+                                 jstring mp4_path) {
+    const char *c_h264_path = env->GetStringUTFChars(h264_path, JNI_FALSE);
+    const char *c_mp4_path = env->GetStringUTFChars(mp4_path, JNI_FALSE);
+    char c_track[] = "--track\0";
+    char c_pro[] = "mux\0";
 
-    char* params[] = {const_cast<char *>(pro.c_str()), const_cast<char *>(cmd.c_str()), const_cast<char *>(src.c_str()),
-                      const_cast<char *>(out.c_str()), const_cast<char *>(pro.c_str())};
-    char** pp = params;
-//    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "参数='%s'", *++pp);
-//    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "参数='%s'", *++pp);
-//    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "参数='%s'", *++pp);
-    string ret= Mp4Mux::getInstance().bboxh264(pp);
-    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "ddddddddddddddddddddd:%s", ret.c_str());
+    char *params[] = {const_cast<char *>(c_pro),
+                      c_track,
+                      const_cast<char *>(c_h264_path),
+                      const_cast<char *>(c_mp4_path),
+                      const_cast<char *>(c_pro)};
+    char **pp = params;
+    string ret = Mp4Mux::getInstance().bboxh264(pp);
+    if ("success" != ret) {
+        __android_log_print(ANDROID_LOG_ERROR, "TAG", "Mux转换报错了:%s", ret.c_str());
+    } else {
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Mux转换成功了:%s", ret.c_str());
+    }
+    env->ReleaseStringUTFChars(h264_path, c_h264_path);
+    env->ReleaseStringUTFChars(mp4_path, c_mp4_path);
     return env->NewStringUTF(ret.c_str());
 }
 
 extern "C" JNIEXPORT jstring
-Java_com_et_bentof_Bentof_mp42hls(JNIEnv *env, jobject /* this */) {
+Java_com_et_bentof_Bentof_mp42hls(JNIEnv *env, jobject /* this */, jstring mp4_src_path,
+                                  jstring out_directory, jstring out_hls_name,
+                                  jstring out_ts_name) {
+    const char *c_mp4_src_path = env->GetStringUTFChars(mp4_src_path, JNI_FALSE);
+    const char *c_out_directory = env->GetStringUTFChars(out_directory, JNI_FALSE);
+    const char *c_out_hls_name = env->GetStringUTFChars(out_hls_name, JNI_FALSE);
+    const char *c_out_ts_name = env->GetStringUTFChars(out_ts_name, JNI_FALSE);
+
     string pro = "hls";
-    string src = "/sdcard/out.mp4";
-    string n = "--segment-filename-template";
-    string n1 = "/sdcard/ssssaaaaa-%d.ts";
-    string a = "--audio-track-id";
-    string a1 = "0";
-    string s = "--segment-url-template";
-    string s1 = "ssssaaaaa-%d.ts";
-    string o = "--index-filename";
-    string o1 = "/sdcard/aaaa.m3u8";
-    string end="end";
+    string cmd_segment_filename_template = "--segment-filename-template";
+    string segment_filename_template = string(c_out_directory) + string(c_out_ts_name);
+    string audio_track_id = "--audio-track-id";
+    string audio_less = "0";
+    string cmd_segment_url_template = "--segment-url-template";
+    string cmd_m3u8_index_filename = "--index-filename";
+    string m3u8_file_path = string(c_out_directory) + string(c_out_hls_name);
 
-
-    // ./mp42hls ou.mp4 --index-filename aaaa.m3u8   --segment-url-template ssssaaaaa-%d.ts
-    // --segment-filename-template ssssaaaaa-%d.ts --audio-track-id 0
-
-
-    char* params[] = {const_cast<char *>(pro.c_str()),
-                      const_cast<char *>(src.c_str()),
-                      const_cast<char *>(n.c_str()),
-                      const_cast<char *>(n1.c_str()),
-                      const_cast<char *>(a.c_str()),
-                      const_cast<char *>(a1.c_str()),
-                      const_cast<char *>(s.c_str()),
-                      const_cast<char *>(s1.c_str()),
-                      const_cast<char *>(o.c_str()),
-                      const_cast<char *>(o1.c_str()),
-                      const_cast<char *>(end.c_str())
+    char *params[] = {const_cast<char *>(pro.c_str()),
+                      const_cast<char *>(c_mp4_src_path),
+                      const_cast<char *>(cmd_segment_filename_template.c_str()),
+                      const_cast<char *>(segment_filename_template.c_str()),
+                      const_cast<char *>(audio_track_id.c_str()),
+                      const_cast<char *>(audio_less.c_str()),
+                      const_cast<char *>(cmd_segment_url_template.c_str()),
+                      const_cast<char *>(segment_filename_template.c_str()),
+                      const_cast<char *>(cmd_m3u8_index_filename.c_str()),
+                      const_cast<char *>(m3u8_file_path.c_str()),
+                      const_cast<char *>(pro.c_str())
     };
-    char** pp = params;
-//    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "参数='%s'", *++pp);
-//    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "参数='%s'", *++pp);
-//    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "参数='%s'", *++pp);
-// mp42hls ou.mp4
-    string ret= Mp42Hls::getInstance().mp42hls(9, pp);
-    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "Hls:%s", ret.c_str());
+    char **pp = params;
+    string ret = Mp42Hls::getInstance().mp42hls(9, pp);
+    __android_log_print(ANDROID_LOG_DEBUG, "Mp42Hls:::", "Hls:%s", ret.c_str());
+    env->ReleaseStringUTFChars(mp4_src_path, c_mp4_src_path);
+    env->ReleaseStringUTFChars(out_directory, c_out_directory);
+    env->ReleaseStringUTFChars(out_hls_name, c_out_hls_name);
+    env->ReleaseStringUTFChars(out_ts_name, c_out_ts_name);
     return env->NewStringUTF(ret.c_str());
 }
 
@@ -72,10 +78,11 @@ Java_com_et_bentof_Bentof_mp42ts(JNIEnv *env, jobject /* this */) {
     string pro = "ts";
     string src = "/sdcard/out.mp4";
     string out = "/sdcard/out2.ts";
-    char* params[] = {const_cast<char *>(pro.c_str()), const_cast<char *>(src.c_str()),const_cast<char *>(out.c_str()),
+    char *params[] = {const_cast<char *>(pro.c_str()), const_cast<char *>(src.c_str()),
+                      const_cast<char *>(out.c_str()),
                       const_cast<char *>(pro.c_str())};
-    char** pp = params;
-    string ret= Mp42Ts::getInstance().mp42ts(3, pp);
+    char **pp = params;
+    string ret = Mp42Ts::getInstance().mp42ts(3, pp);
     __android_log_print(ANDROID_LOG_DEBUG, "ddd", "Ts:%s", ret.c_str());
     return env->NewStringUTF(ret.c_str());
 }

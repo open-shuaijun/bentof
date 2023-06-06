@@ -1101,7 +1101,6 @@ WriteSamples(AP4_Mpeg2TsWriter *ts_writer,
                 segment_output = OpenOutput(HlsOptions.segment_filename_template, segment_number);
                 raw_output = segment_output;
                 if (segment_output == NULL) {
-                    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "nnnnnnnnnnnnnnnnnnnn");
                     return AP4_ERROR_CANNOT_OPEN_FILE;
                 }
             }
@@ -1749,7 +1748,6 @@ std::string Mp42Hls::mp42hls(int argc, char **argv) {
             HlsOptions.encryption_key_lines.Append(*args++);
         } else if (HlsOptions.input == NULL) {
             HlsOptions.input = arg;
-            __android_log_print(ANDROID_LOG_DEBUG, "TAG", "文件输入路径:%s", HlsOptions.input);
         } else {
             sprintf(msg, "ERROR: unexpected argument: %s\n", arg);
             break;
@@ -1950,26 +1948,18 @@ std::string Mp42Hls::mp42hls(int argc, char **argv) {
         linear_reader = new AP4_LinearReader(*movie, input);
 
         if (audio_track) {
-            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
-                                "====================================audio");
             linear_reader->EnableTrack(audio_track->GetId());
             audio_reader = new FragmentedSampleHlsReader(*linear_reader, audio_track->GetId());
         }
         if (video_track) {
-            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
-                                "====================================video");
             linear_reader->EnableTrack(video_track->GetId());
             video_reader = new FragmentedSampleHlsReader(*linear_reader, video_track->GetId());
         }
     } else {
         if (audio_track) {
-            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
-                                "====================================aaudio");
             audio_reader = new TrackSampleHlsReader(*audio_track);
         }
         if (video_track) {
-            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
-                                "====================================vvideo");
             video_reader = new TrackSampleHlsReader(*video_track);
         }
     }
@@ -2139,9 +2129,6 @@ std::string Mp42Hls::mp42hls(int argc, char **argv) {
 
         // add the video stream
         if (video_track) {
-            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
-                                "=================1111===================");
-
             sample_description = video_track->GetSampleDescription(0);
             if (sample_description == NULL) {
                 sprintf(msg, "ERROR: unable to parse video sample description\n");
@@ -2187,8 +2174,6 @@ std::string Mp42Hls::mp42hls(int argc, char **argv) {
                     return msg;
                 }
             }
-            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
-                                "=================2222===================");
 
             // setup the video stream
             result = ts_writer->SetVideoStream(video_track->GetMediaTimeScale(),
@@ -2200,9 +2185,6 @@ std::string Mp42Hls::mp42hls(int argc, char **argv) {
                                                HlsOptions.pcr_offset);
             if (AP4_FAILED(result)) {
                 sprintf(msg, "could not create video stream (%d)\n", result);
-                __android_log_print(ANDROID_LOG_DEBUG, "TAG",
-                                    "=================3333===================:%s", msg);
-
                 goto end;
             }
         }
@@ -2216,9 +2198,7 @@ std::string Mp42Hls::mp42hls(int argc, char **argv) {
 
     if (AP4_FAILED(result)) {
         sprintf(msg, "ERROR: failed to write samples2 (%d)\n", result);
-        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "写入对象创建失败::%s", msg);
         __android_log_print(ANDROID_LOG_DEBUG, "TAG", "AP4_FAILED:%s", msg);
-
         return msg;
     }
 

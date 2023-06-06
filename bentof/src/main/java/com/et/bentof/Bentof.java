@@ -2,9 +2,9 @@ package com.et.bentof;
 
 public class Bentof {
 
-    public native String mp4mux();
+    public native String mp4mux(String h264Path, String mp4Path);
 
-    public native String mp42hls();
+    public native String mp42hls(String mp4InputPath,String outDirectory, String outFileName, String outTsName);
 
     public native String mp42ts();
 
@@ -13,7 +13,7 @@ public class Bentof {
     }
 
     private Bentof() {
-
+        System.loadLibrary("bentof");
     }
 
     public static Bentof getInstance() {

@@ -241,9 +241,7 @@ AP4_StdcFileByteStream::Create(AP4_FileByteStream*      delegator,
 #endif
     } else if (!strcmp(name, "-stderr")) {
         file = stderr;
-        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "ggggggggggggggggggggggggggg=%s", name);
     } else {
-        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "vvvvvvvvvvvvvvvvvvvvvv=%s", name);
         int open_result;
         switch (mode) {
           case AP4_FileByteStream::STREAM_MODE_READ:

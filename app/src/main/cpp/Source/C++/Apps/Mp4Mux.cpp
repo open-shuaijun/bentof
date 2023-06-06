@@ -2408,11 +2408,17 @@ string Mp4Mux::bboxh264(char **argv) {
 
 string funcc() {
     auto t = std::chrono::steady_clock::now();
-    string ret = main_func(3, argv);
+
+
+
+
+//    string ret = main_func(3, argv);
+
+
+
+
     auto hs = std::chrono::steady_clock::now();
-
     auto cs = std::chrono::duration_cast<std::chrono::milliseconds>(hs - t).count();
-
     __android_log_print(ANDROID_LOG_DEBUG, "TAG", "视频转换耗时:%lld ms", cs);
     return "success";
 }

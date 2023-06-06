@@ -6,7 +6,7 @@ MP4 DCF Packager - Version 1.0.1
 
 usage: mp4dcfpackager --method <method> [options] <input> <output>
   --method: <method> is NULL, CBC or CTR
-  Options:
+  HlsOptions:
   --show-progress: show progress details
   --content-type:  content MIME type
   --content-id:    content ID

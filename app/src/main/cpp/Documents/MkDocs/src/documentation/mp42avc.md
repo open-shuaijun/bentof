@@ -5,6 +5,6 @@ MP4 To AVC File Converter - Version 1.0
 (c) 2002-2009 Axiomatic Systems, LLC
 
 usage: mp42avc [options] <input> <output>
-  Options:
+  HlsOptions:
   --key <hex>: 128-bit decryption key (in hex: 32 chars)
 ```

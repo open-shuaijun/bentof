@@ -37,7 +37,7 @@
 +---------------------------------------------------------------------*/
 void Mp4Mux::PrintUsageAndExit() {
     fprintf(stderr,
-            BANNER
+            MUX_BANNER
             "\n\nusage: mp4mux [options] --track [<type>:]<input>[#<params>] [--track [<type>:]<input>[#<params>] ...] <output>\n"
             "\n"
             "  <params>, when specified, are expressd as a comma-separated list of\n"
@@ -71,7 +71,7 @@ void Mp4Mux::PrintUsageAndExit() {
             "\n"
             "If no type is specified for an input, the type will be inferred from the file extension\n"
             "\n"
-            "Options:\n"
+            "HlsOptions:\n"
             "  --verbose: show more details\n");
     exit(1);
 }
@@ -369,7 +369,7 @@ Mp4Mux::AddAacTrack(AP4_Movie &movie,
         AP4_AacFrame frame;
         result = parser.FindFrame(frame);
         if (AP4_SUCCEEDED(result)) {
-            if (Options.verbose) {
+            if (MuxOptions.verbose) {
                 printf("AAC frame [%06d]: size = %d, %d kHz, %d ch\n",
                        sample_count,
                        frame.m_Info.m_FrameLength,
@@ -511,7 +511,7 @@ Mp4Mux::AddAc3Track(AP4_Movie &movie,
         AP4_Ac3Frame frame;
         result = parser.FindFrame(frame);
         if (AP4_SUCCEEDED(result)) {
-            if (Options.verbose) {
+            if (MuxOptions.verbose) {
                 printf("AC-3 frame [%06d]: size = %d, %d kHz, %d ch\n",
                        sample_count,
                        frame.m_Info.m_FrameSize,
@@ -652,7 +652,7 @@ Mp4Mux::AddEac3Track(AP4_Movie &movie,
         AP4_Eac3Frame frame;
         result = parser.FindFrame(frame);
         if (AP4_SUCCEEDED(result)) {
-            if (Options.verbose) {
+            if (MuxOptions.verbose) {
                 printf("E-AC-3 frame [%06d]: size = %d, %d kHz, %d ch\n",
                        sample_count,
                        frame.m_Info.m_FrameSize,
@@ -806,7 +806,7 @@ void Mp4Mux::AddAc4Track(AP4_Movie &movie,
         AP4_Ac4Frame frame;
         result = parser.FindFrame(frame);
         if (AP4_SUCCEEDED(result)) {
-            if (Options.verbose) {
+            if (MuxOptions.verbose) {
                 printf("AC-4 frame [%06d]: size = %d, %d kHz, %d ch\n",
                        sample_count,
                        frame.m_Info.m_FrameSize,
@@ -998,7 +998,7 @@ void Mp4Mux::AddH264Track(AP4_Movie &movie,
             if (access_unit_info.nal_units.ItemCount()) {
                 // we got one access unit
                 found_access_unit = true;
-                if (Options.verbose) {
+                if (MuxOptions.verbose) {
                     printf("H264 Access Unit, %d NAL units, decode_order=%d, display_order=%d\n",
                            access_unit_info.nal_units.ItemCount(),
                            access_unit_info.decode_order,
@@ -1080,7 +1080,7 @@ void Mp4Mux::AddH264Track(AP4_Movie &movie,
     unsigned int video_width = 0;
     unsigned int video_height = 0;
     sps->GetInfo(video_width, video_height);
-    if (Options.verbose) {
+    if (MuxOptions.verbose) {
         printf("VIDEO: %dx%d\n", video_width, video_height);
     }
 
@@ -1278,7 +1278,7 @@ void Mp4Mux::AddH264DoviTrack(AP4_Movie &movie,
             if (access_unit_info.nal_units.ItemCount()) {
                 // we got one access unit
                 found_access_unit = true;
-                if (Options.verbose) {
+                if (MuxOptions.verbose) {
                     printf("H264 Access Unit, %d NAL units, decode_order=%d, display_order=%d\n",
                            access_unit_info.nal_units.ItemCount(),
                            access_unit_info.decode_order,
@@ -1360,7 +1360,7 @@ void Mp4Mux::AddH264DoviTrack(AP4_Movie &movie,
     unsigned int video_width = 0;
     unsigned int video_height = 0;
     sps->GetInfo(video_width, video_height);
-    if (Options.verbose) {
+    if (MuxOptions.verbose) {
         printf("VIDEO: %dx%d\n", video_width, video_height);
     }
 
@@ -1540,7 +1540,7 @@ Mp4Mux::AddH265Track(AP4_Movie &movie,
             if (access_unit_info.nal_units.ItemCount()) {
                 // we got one access unit
                 found_access_unit = true;
-                if (Options.verbose) {
+                if (MuxOptions.verbose) {
                     printf("H265 Access Unit, %d NAL units, decode_order=%d, display_order=%d\n",
                            access_unit_info.nal_units.ItemCount(),
                            access_unit_info.decode_order,
@@ -1638,7 +1638,7 @@ Mp4Mux::AddH265Track(AP4_Movie &movie,
     AP4_UI08 nalu_length_size = 4;
 
     sps->GetInfo(video_width, video_height);
-    if (Options.verbose) {
+    if (MuxOptions.verbose) {
         printf("VIDEO: %dx%d\n", video_width, video_height);
     }
 
@@ -1864,7 +1864,7 @@ void Mp4Mux::AddH265DoviTrack(AP4_Movie &movie,
             if (access_unit_info.nal_units.ItemCount()) {
                 // we got one access unit
                 found_access_unit = true;
-                if (Options.verbose) {
+                if (MuxOptions.verbose) {
                     printf("H265 Access Unit, %d NAL units, decode_order=%d, display_order=%d\n",
                            access_unit_info.nal_units.ItemCount(),
                            access_unit_info.decode_order,
@@ -1963,7 +1963,7 @@ void Mp4Mux::AddH265DoviTrack(AP4_Movie &movie,
     AP4_UI08 transfer_characteristics = sps->vui_parameters.transfer_characteristics;
 
     sps->GetInfo(video_width, video_height);
-    if (Options.verbose) {
+    if (MuxOptions.verbose) {
         printf("VIDEO: %dx%d\n", video_width, video_height);
     }
 
@@ -2149,7 +2149,7 @@ void Mp4Mux::AddMp4Tracks(AP4_Movie &movie,
         }
     }
 
-    if (Options.verbose) {
+    if (MuxOptions.verbose) {
         if (track_id == 0) {
             printf("MP4 Import: importing all tracks from %s\n", input_name);
         } else {
@@ -2187,14 +2187,14 @@ Mp4Mux::main_func(int argc, char **argv) {
     if (argc < 2) {
         return "缺少必要的参数";
     }
-    Options.verbose = false;
+    MuxOptions.verbose = false;
 
     const char *output_filename = NULL;
     AP4_Array<char *> input_names;
 
     while (char *arg = *++argv) {
         if (!strcmp(arg, "--verbose")) {
-            Options.verbose = true;
+            MuxOptions.verbose = true;
         } else if (!strcmp(arg, "--track")) {
             input_names.Append(*++argv);
         } else if (output_filename == NULL) {
@@ -2400,27 +2400,6 @@ string Mp4Mux::bboxh264(char **argv) {
     auto cs = std::chrono::duration_cast<std::chrono::milliseconds>(hs - t).count();
     __android_log_print(ANDROID_LOG_DEBUG, "TAG", "视频包装耗时:%lld ms", cs);
     return ret;
-}
-
-/**
- * 视频转换格式 mp4->m3u8
- * */
-
-string funcc() {
-    auto t = std::chrono::steady_clock::now();
-
-
-
-
-//    string ret = main_func(3, argv);
-
-
-
-
-    auto hs = std::chrono::steady_clock::now();
-    auto cs = std::chrono::duration_cast<std::chrono::milliseconds>(hs - t).count();
-    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "视频转换耗时:%lld ms", cs);
-    return "success";
 }
 
 

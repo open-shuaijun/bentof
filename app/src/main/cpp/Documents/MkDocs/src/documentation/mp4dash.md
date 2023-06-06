@@ -7,7 +7,7 @@ with a stream selector delimited by [ and ]. The same input MP4 file may be
 repeated, provided that the stream selector prefixes select different streams.
 Version 2.0.0 r637
 
-Options:
+HlsOptions:
   -h, --help            show this help message and exit
   -v, --verbose         Be verbose
   -d, --debug           Print out debugging information

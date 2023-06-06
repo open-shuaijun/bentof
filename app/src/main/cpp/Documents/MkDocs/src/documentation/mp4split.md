@@ -5,7 +5,7 @@ MP4 Fragment Splitter - Version 1.2
 (c) 2002-2016 Axiomatic Systems, LLC
 
 usage: mp4split [options] <input>
-Options:
+HlsOptions:
   --verbose : print verbose information when running
   --init-segment <filename> : name of init segment (default: init.mp4)
   --init-only : only output the init segment (no media segments)

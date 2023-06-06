@@ -3,7 +3,7 @@
 Usage: mp4-dash-clone.py [options] <file-or-http-url> <output-dir>
 
 
-Options:
+HlsOptions:
   -h, --help            show this help message and exit
   --quiet               Be quiet
   --encrypt=<KID:KEY>   Encrypt the media, with KID and KEY specified in Hex

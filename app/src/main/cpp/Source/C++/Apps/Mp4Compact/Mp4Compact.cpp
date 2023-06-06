@@ -51,7 +51,7 @@ PrintUsageAndExit()
         BANNER 
         "\n\n"
         "usage: mp4compact [options] <input> <output>\n"
-        "Options:\n"
+        "HlsOptions:\n"
         "  --verbose\n"
         );
     exit(1);

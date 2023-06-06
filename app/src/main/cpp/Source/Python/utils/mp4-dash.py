@@ -1719,7 +1719,7 @@ def GetMappedFileName(filename):
     return FileNameMap.get(filename, filename)
 
 #############################################
-Options = None
+HlsOptions = None
 def main():
     # determine the platform binary name
     host_platform = ''
@@ -1866,8 +1866,8 @@ def main():
     if not args:
         parser.print_help()
         sys.exit(1)
-    global Options
-    Options = options
+    global HlsOptions
+    HlsOptions = options
 
     # set some synthetic (not from command line) options
     options.on_demand = False
@@ -1888,7 +1888,7 @@ def main():
 
     if options.exec_dir != "-":
         if not path.exists(options.exec_dir):
-            PrintErrorAndExit('Executable directory does not exist ('+Options.exec_dir+'), use --exec-dir')
+            PrintErrorAndExit('Executable directory does not exist ('+HlsOptions.exec_dir+'), use --exec-dir')
 
     if options.max_playout_rate_strategy:
         if not options.max_playout_rate_strategy.startswith('lowest:'):
@@ -2049,7 +2049,7 @@ def main():
     for track in audio_tracks + video_tracks + subtitles_tracks:
         track.key_info = track.parent.media_source.key_infos.get(track.id, track.key_info)
 
-    if Options.verbose:
+    if HlsOptions.verbose:
         print('Audio:',     audio_sets)
         print('Video:',     video_sets)
         print('Subtitles:', subtitles_sets)
@@ -2243,7 +2243,7 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as err:
-        if Options and Options.debug:
+        if HlsOptions and HlsOptions.debug:
             raise
         else:
             PrintErrorAndExit('ERROR: {}\n'.format(str(err)))

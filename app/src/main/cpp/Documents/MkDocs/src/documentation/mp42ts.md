@@ -5,7 +5,7 @@ MP4 To MPEG2-TS File Converter - Version 1.3
 (c) 2002-2018 Axiomatic Systems, LLC
 
 usage: mp42ts [options] <input> <output>
-Options:
+HlsOptions:
   --pmt-pid <pid>   (default: 0x100)
   --audio-pid <pid> (default: 0x101)
   --video-pid <pid> (default: 0x102)

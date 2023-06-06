@@ -51,7 +51,7 @@ PrintUsageAndExit()
     fprintf(stderr, 
             BANNER 
             "\n\nusage: mp42hevc [options] <input> <output>\n"
-            "  Options:\n"
+            "  HlsOptions:\n"
             "  --key <hex>: 128-bit decryption key (in hex: 32 chars)\n");
     exit(1);
 }

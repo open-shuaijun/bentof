@@ -34,7 +34,7 @@ MARLIN_MAS_NS_URN  = 'urn:marlin:mas:1-0:services:schemas:mpd'
 MARLIN_MAS_NS      = '{'+MARLIN_MAS_NS_URN+'}'
 
 def Bento4Command(name, *args, **kwargs):
-    cmd = [path.join(Options.exec_dir, name)]
+    cmd = [path.join(HlsOptions.exec_dir, name)]
     for kwarg in kwargs:
         arg = kwarg.replace('_', '-')
         cmd.append('--'+arg)
@@ -276,7 +276,7 @@ def ParseMpd(url, xml):
         global DASH_NS_URN
         DASH_NS = DASH_NS_COMPAT
         DASH_NS_URN = DASH_NS_URN_COMPAT
-        if Options.verbose:
+        if HlsOptions.verbose:
             print('@@@ Using backward compatible namespace')
 
     mpd = DashMPD(url, mpd_tree)
@@ -323,7 +323,7 @@ class Cloner:
         while path_out.startswith('/'):
             path_out = path_out[1:]
         target_dir = path.join(self.root_dir, path_out)
-        if Options.verbose:
+        if HlsOptions.verbose:
             print('Cloning', url, 'to', path_out)
 
         #os.makedirs(target_dir)
@@ -338,7 +338,7 @@ class Cloner:
         data = OpenURL(url)
         outfile_name = path.join(self.root_dir, path_out)
         use_temp_file = False
-        if Options.encrypt:
+        if HlsOptions.encrypt:
             use_temp_file = True
             outfile_name_final = outfile_name
             outfile_name += '.tmp'
@@ -347,7 +347,7 @@ class Cloner:
             shutil.copyfileobj(data, outfile)
             outfile.close()
 
-            if Options.encrypt:
+            if HlsOptions.encrypt:
                 if is_init:
                     self.track_ids = GetTrackIds(outfile_name)
                     self.init_filename = outfile_name
@@ -356,16 +356,16 @@ class Cloner:
                 args = ["--method", "MPEG-CENC"]
                 for t in self.track_ids:
                     args.append("--property")
-                    args.append(str(t)+":KID:"+Options.kid.encode('hex'))
+                    args.append(str(t)+":KID:"+HlsOptions.kid.encode('hex'))
                 for t in self.track_ids:
                     args.append("--key")
-                    args.append(str(t)+":"+Options.key.encode('hex')+':random')
+                    args.append(str(t)+":"+HlsOptions.key.encode('hex')+':random')
                 args += [outfile_name, outfile_name_final]
 
                 if not is_init:
                     args += ["--fragments-info", self.init_filename]
 
-                if Options.verbose:
+                if HlsOptions.verbose:
                     print('mp4encrypt '+(' '.join(args)))
                 Bento4Command("mp4encrypt", *args)
         finally:
@@ -396,8 +396,8 @@ def main():
                       dest="exec_dir", default=path.join(SCRIPT_PATH, 'bin', platform),
                       help="Directory where the Bento4 executables are located")
 
-    global Options
-    (Options, args) = parser.parse_args()
+    global HlsOptions
+    (HlsOptions, args) = parser.parse_args()
     if len(args) != 2:
         parser.print_help()
         sys.exit(1)
@@ -405,24 +405,24 @@ def main():
     # process arguments
     mpd_url = args[0]
     output_dir = args[1]
-    if Options.encrypt:
-        if len(Options.encrypt) != 65:
+    if HlsOptions.encrypt:
+        if len(HlsOptions.encrypt) != 65:
             raise Exception('Invalid argument for --encrypt option')
-        Options.kid = bytes.fromhex(Options.encrypt[:32])
-        Options.key = bytes.fromhex(Options.encrypt[33:])
+        HlsOptions.kid = bytes.fromhex(HlsOptions.encrypt[:32])
+        HlsOptions.key = bytes.fromhex(HlsOptions.encrypt[33:])
 
     # create the output dir
     MakeNewDir(output_dir, True)
 
     # load and parse the MPD
-    if Options.verbose: print("Loading MPD from", mpd_url)
+    if HlsOptions.verbose: print("Loading MPD from", mpd_url)
     try:
         mpd_xml = OpenURL(mpd_url).read().decode('utf-8')
     except Exception as e:
         print("ERROR: failed to load MPD:", e)
         sys.exit(1)
 
-    if Options.verbose: print("Parsing MPD")
+    if HlsOptions.verbose: print("Parsing MPD")
     mpd_xml = mpd_xml.replace('nitialisation', 'nitialization')
     mpd = ParseMpd(mpd_url, mpd_xml)
 
@@ -435,17 +435,17 @@ def main():
             for representation in adaptation_set.representations:
                 # compute the base URL
                 base_url = representation.AttributeLookup('base_urls')[0]
-                if Options.verbose:
+                if HlsOptions.verbose:
                     print('Base URL = '+base_url)
 
                 # process the init segment
-                if Options.verbose:
+                if HlsOptions.verbose:
                     print('### Processing Initialization Segment')
                 url = ComputeUrl(base_url, representation.init_segment_url)
                 cloner.CloneSegment(url, representation.init_segment_url, True)
 
                 # process all segment URLs
-                if Options.verbose:
+                if HlsOptions.verbose:
                     print('### Processing Media Segments for AdaptationSet', representation.id)
                 for seg_url in representation.GenerateSegmentUrls():
                     url = ComputeUrl(base_url, seg_url)
@@ -459,14 +459,14 @@ def main():
                 cloner.Cleanup()
 
     # modify the MPD if needed
-    if Options.encrypt:
+    if HlsOptions.encrypt:
         for p in mpd.xml.findall(DASH_NS+'Period'):
             for s in p.findall(DASH_NS+'AdaptationSet'):
                 cp = ElementTree.Element(DASH_NS+'ContentProtection', schemeIdUri='urn:uuid:5E629AF5-38DA-4063-8977-97FFBD9902D4')
                 cp.tail = s.tail
                 cids = ElementTree.SubElement(cp, MARLIN_MAS_NS+'MarlinContentIds')
                 cid = ElementTree.SubElement(cids, MARLIN_MAS_NS+'MarlinContentId')
-                cid.text = 'urn:marlin:kid:'+Options.kid.encode('hex')
+                cid.text = 'urn:marlin:kid:'+HlsOptions.kid.encode('hex')
                 s.insert(0, cp)
 
     # write the MPD

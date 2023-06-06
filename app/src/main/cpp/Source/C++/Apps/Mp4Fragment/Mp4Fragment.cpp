@@ -67,7 +67,7 @@ struct _Options {
     unsigned int  sequence_number_start;
     ForceSyncMode force_i_frame_sync;
     bool          no_zero_elst;
-} Options;
+} HlsOptions;
 
 /*----------------------------------------------------------------------
 |   PrintUsageAndExit
@@ -387,7 +387,7 @@ Fragment(AP4_File&                input_file,
                           AP4_ElstEntry new_elst_entry = elst->GetEntries()[j];
                           if (j == elst->GetEntries().ItemCount() - 1 &&
                               new_elst_entry.m_SegmentDuration == track->GetDuration() &&
-                              !Options.no_zero_elst) {
+                              !HlsOptions.no_zero_elst) {
                               // if this is the last entry, make the segment duration 0 (i.e last until the end)
                               // in order to be compliant with the CMAF specification
                               new_elst_entry.m_SegmentDuration = 0;
@@ -463,7 +463,7 @@ Fragment(AP4_File&                input_file,
         fprintf(stderr, "ERROR: no anchor track\n");
         return;
     }
-    if (Options.debug) {
+    if (HlsOptions.debug) {
         printf("Using track ID %d as anchor\n", anchor_cursor->m_Track->GetId());
     }
     
@@ -485,7 +485,7 @@ Fragment(AP4_File&                input_file,
     }
     
     // compute all the fragments
-    unsigned int sequence_number = Options.sequence_number_start;
+    unsigned int sequence_number = HlsOptions.sequence_number_start;
     for(;;) {
         TrackCursor* cursor = NULL;
 
@@ -504,14 +504,14 @@ Fragment(AP4_File&                input_file,
             if (anchor_cursor->m_Eos) {
                 // the anchor is done, pick a new anchor unless we need to trim
                 anchor_cursor = NULL;
-                if (!Options.trim) {
+                if (!HlsOptions.trim) {
                     for (unsigned int i=0; i<cursors.ItemCount(); i++) {
                         if (cursors[i]->m_Eos) continue;
                         if (anchor_cursor == NULL ||
                             cursors[i]->m_Track->GetType() == AP4_Track::TYPE_VIDEO ||
                             cursors[i]->m_Track->GetType() == AP4_Track::TYPE_AUDIO) {
                             anchor_cursor = cursors[i];
-                            if (Options.debug) {
+                            if (HlsOptions.debug) {
                                 printf("+++ New anchor: Track ID %d\n", anchor_cursor->m_Track->GetId());
                             }
                         }
@@ -590,7 +590,7 @@ Fragment(AP4_File&                input_file,
         }
         if (cursor->m_Eos) continue;
         
-        if (Options.debug) {
+        if (HlsOptions.debug) {
             if (cursor == anchor_cursor) {
                 printf("====");
             } else {
@@ -606,7 +606,7 @@ Fragment(AP4_File&                input_file,
         }
         
         // emit a fragment for the selected track
-        if (Options.verbosity > 1) {
+        if (HlsOptions.verbosity > 1) {
             printf("fragment: track ID %d\n", cursor->m_Track->GetId());
         }
 
@@ -642,8 +642,8 @@ Fragment(AP4_File&                input_file,
                                               0,
                                               0);
         traf->AddChild(tfhd);
-        if (!Options.no_tfdt) {
-            AP4_TfdtAtom* tfdt = new AP4_TfdtAtom(1, cursor->m_Timestamp + (AP4_UI64)(Options.tfdt_start * (double)cursor->m_Track->GetMediaTimeScale()));
+        if (!HlsOptions.no_tfdt) {
+            AP4_TfdtAtom* tfdt = new AP4_TfdtAtom(1, cursor->m_Timestamp + (AP4_UI64)(HlsOptions.tfdt_start * (double)cursor->m_Track->GetMediaTimeScale()));
             traf->AddChild(tfdt);
         }
                                               
@@ -731,7 +731,7 @@ Fragment(AP4_File&                input_file,
             }
             sample_count++;
             if (cursor->m_Eos) {
-                if (Options.debug) {
+                if (HlsOptions.debug) {
                     printf("[Track ID %d has reached the end]\n", cursor->m_Track->GetId());
                 }
                 break;
@@ -740,7 +740,7 @@ Fragment(AP4_File&                input_file,
                 break; // done with this fragment
             }
         }
-        if (Options.verbosity > 2) {
+        if (HlsOptions.verbosity > 2) {
             printf(" %d samples\n", sample_count);
             printf(" constant sample duration: %s\n", all_sample_durations_equal?"yes":"no");
         }
@@ -829,7 +829,7 @@ Fragment(AP4_File&                input_file,
     output_stream.Tell(sidx_position);
     if (create_segment_index) {
         AP4_UI32 sidx_timescale = timescale ? timescale : indexed_cursor->m_Track->GetMediaTimeScale();
-        AP4_UI64 earliest_presentation_time = (AP4_UI64)(Options.tfdt_start * (double)sidx_timescale);
+        AP4_UI64 earliest_presentation_time = (AP4_UI64)(HlsOptions.tfdt_start * (double)sidx_timescale);
         sidx = new AP4_SidxAtom(indexed_cursor->m_Track->GetId(),
                                 sidx_timescale,
                                 earliest_presentation_time,
@@ -975,7 +975,7 @@ AutoDetectFragmentDuration(TrackCursor* cursor)
             // found a pattern
             AP4_UI64 duration = sample.GetDts();
             double fps = (double)(interval*(sync_count-1))/((double)duration/(double)cursor->m_Track->GetMediaTimeScale());
-            if (Options.verbosity > 0) {
+            if (HlsOptions.verbosity > 0) {
                 printf("found regular I-frame interval: %d frames (at %.3f frames per second)\n",
                        interval, (float)fps);
             }
@@ -1140,13 +1140,13 @@ main(int argc, char** argv)
     AP4_UI32     timescale                     = 0;
     AP4_Result   result;
 
-    Options.verbosity             = 1;
-    Options.debug                 = false;
-    Options.trim                  = false;
-    Options.no_tfdt               = false;
-    Options.tfdt_start            = 0.0;
-    Options.sequence_number_start = 1;
-    Options.force_i_frame_sync    = AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE;
+    HlsOptions.verbosity             = 1;
+    HlsOptions.debug                 = false;
+    HlsOptions.trim                  = false;
+    HlsOptions.no_tfdt               = false;
+    HlsOptions.tfdt_start            = 0.0;
+    HlsOptions.sequence_number_start = 1;
+    HlsOptions.force_i_frame_sync    = AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE;
     
     // parse the command line
     argv++;
@@ -1158,31 +1158,31 @@ main(int argc, char** argv)
                 fprintf(stderr, "ERROR: missing argument after --verbosity option\n");
                 return 1;
             }
-            Options.verbosity = (unsigned int)strtoul(arg, NULL, 10);
+            HlsOptions.verbosity = (unsigned int)strtoul(arg, NULL, 10);
         } else if (!strcmp(arg, "--debug")) {
-            Options.debug = true;
+            HlsOptions.debug = true;
         } else if (!strcmp(arg, "--index")) {
             create_segment_index = true;
         } else if (!strcmp(arg, "--quiet")) {
             quiet = true;
         } else if (!strcmp(arg, "--trim")) {
-            Options.trim = true;
+            HlsOptions.trim = true;
         } else if (!strcmp(arg, "--no-tfdt")) {
-            Options.no_tfdt = true;
+            HlsOptions.no_tfdt = true;
         } else if (!strcmp(arg, "--tfdt-start")) {
             arg = *argv++;
             if (arg == NULL) {
                 fprintf(stderr, "ERROR: missing argument after --tfdt-start option\n");
                 return 1;
             }
-            Options.tfdt_start = strtod(arg, NULL);
+            HlsOptions.tfdt_start = strtod(arg, NULL);
         } else if (!strcmp(arg, "--sequence-number-start")) {
             arg = *argv++;
             if (arg == NULL) {
                 fprintf(stderr, "ERROR: missing argument after --sequence-number-start option\n");
                 return 1;
             }
-            Options.sequence_number_start = (unsigned int)strtoul(arg, NULL, 10);
+            HlsOptions.sequence_number_start = (unsigned int)strtoul(arg, NULL, 10);
         } else if (!strcmp(arg, "--force-i-frame-sync")) {
             arg = *argv++;
             if (arg == NULL) {
@@ -1190,9 +1190,9 @@ main(int argc, char** argv)
                 return 1;
             }
             if (!strcmp(arg, "all")) {
-                Options.force_i_frame_sync = AP4_FRAGMENTER_FORCE_SYNC_MODE_ALL;
+                HlsOptions.force_i_frame_sync = AP4_FRAGMENTER_FORCE_SYNC_MODE_ALL;
             } else if (!strcmp(arg, "auto")) {
-                Options.force_i_frame_sync = AP4_FRAGMENTER_FORCE_SYNC_MODE_AUTO;
+                HlsOptions.force_i_frame_sync = AP4_FRAGMENTER_FORCE_SYNC_MODE_AUTO;
             } else {
                 fprintf(stderr, "ERROR: unknown mode for --force-i-frame-sync\n");
                 return 1;
@@ -1223,7 +1223,7 @@ main(int argc, char** argv)
         } else if (!strcmp(arg, "--copy-udta")) {
             copy_udta = true;
         } else if (!strcmp(arg, "--no-zero-elst")) {
-            Options.no_zero_elst = true;
+            HlsOptions.no_zero_elst = true;
         } else {
             if (input_filename == NULL) {
                 input_filename = arg;
@@ -1235,8 +1235,8 @@ main(int argc, char** argv)
             }
         }
     }
-    if (Options.debug && Options.verbosity == 0) {
-        Options.verbosity = 1;
+    if (HlsOptions.debug && HlsOptions.verbosity == 0) {
+        HlsOptions.verbosity = 1;
     }
     
     if (input_filename == NULL) {
@@ -1378,7 +1378,7 @@ main(int argc, char** argv)
         return 1;
     }
     AP4_AvcSampleDescription* avc_desc = NULL;
-    if (video_track && (Options.force_i_frame_sync != AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE)) {
+    if (video_track && (HlsOptions.force_i_frame_sync != AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE)) {
         // that feature is only supported for AVC
         AP4_SampleDescription* sdesc = video_track->m_Track->GetSampleDescription(0);
         if (sdesc) {
@@ -1414,16 +1414,16 @@ main(int argc, char** argv)
             }
         } while (AP4_SUCCEEDED(result));
         
-    } else if (video_track && (Options.force_i_frame_sync != AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE)) {
+    } else if (video_track && (HlsOptions.force_i_frame_sync != AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE)) {
         AP4_Sample sample;
-        if (Options.force_i_frame_sync == AP4_FRAGMENTER_FORCE_SYNC_MODE_AUTO) {
+        if (HlsOptions.force_i_frame_sync == AP4_FRAGMENTER_FORCE_SYNC_MODE_AUTO) {
             // detect if this looks like an open-gop source
             for (unsigned int i=1; i<video_track->m_Samples->GetSampleCount(); i++) {
                 if (AP4_SUCCEEDED(video_track->m_Samples->GetSample(i, sample))) {
                     if (sample.IsSync()) {
                         // we found a sync i-frame, assume this is *not* an open-gop source
-                        Options.force_i_frame_sync = AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE;
-                        if (Options.debug) {
+                        HlsOptions.force_i_frame_sync = AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE;
+                        if (HlsOptions.debug) {
                             printf("this does not look like an open-gop source, not forcing i-frame sync flags\n");
                         }
                         break;
@@ -1431,7 +1431,7 @@ main(int argc, char** argv)
                 }
             }
         }
-        if (Options.force_i_frame_sync != AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE) {
+        if (HlsOptions.force_i_frame_sync != AP4_FRAGMENTER_FORCE_SYNC_MODE_NONE) {
             for (unsigned int i=0; i<video_track->m_Samples->GetSampleCount(); i++) {
                 if (AP4_SUCCEEDED(video_track->m_Samples->GetSample(i, sample))) {
                     if (IsIFrame(sample, avc_desc)) {
@@ -1453,12 +1453,12 @@ main(int argc, char** argv)
             fragment_duration = AutoDetectAudioFragmentDuration(*input_stream, audio_track);
         }
         if (fragment_duration == 0) {
-            if (Options.verbosity > 0) {
+            if (HlsOptions.verbosity > 0) {
                 fprintf(stderr, "unable to autodetect fragment duration, using default\n");
             }
             fragment_duration = AP4_FRAGMENTER_DEFAULT_FRAGMENT_DURATION;
         } else if (fragment_duration > AP4_FRAGMENTER_MAX_AUTO_FRAGMENT_DURATION) {
-            if (Options.verbosity > 0) {
+            if (HlsOptions.verbosity > 0) {
                 fprintf(stderr, "auto-detected fragment duration too large, using default\n");
             }
             fragment_duration = AP4_FRAGMENTER_DEFAULT_FRAGMENT_DURATION;

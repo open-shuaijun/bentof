@@ -52,7 +52,7 @@ PrintUsageAndExit()
         "\n\n"
         "usage: mp4dcfpackager --method <method> [options] <input> <output>\n"
         "  --method: <method> is NULL, CBC or CTR\n"
-        "  Options:\n"
+        "  HlsOptions:\n"
         "  --show-progress: show progress details\n"
         "  --content-type:  content MIME type\n"
         "  --content-id:    content ID\n"

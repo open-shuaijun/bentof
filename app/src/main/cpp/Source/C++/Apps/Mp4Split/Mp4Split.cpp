@@ -62,7 +62,7 @@ struct Options {
     bool         audio_only;
     bool         video_only;
     bool         init_only;
-} Options;
+} HlsOptions;
 
 /*----------------------------------------------------------------------
 |   PrintUsageAndExit
@@ -73,7 +73,7 @@ PrintUsageAndExit()
     fprintf(stderr, 
             BANNER 
             "\n\nusage: mp4split [options] <input>\n"
-            "Options:\n"
+            "HlsOptions:\n"
             "  --verbose : print verbose information when running\n"
             "  --init-segment <filename> : name of init segment (default: init.mp4)\n"
             "  --init-only : only output the init segment (no media segments)\n"
@@ -123,12 +123,12 @@ ParseTrackIds(char* ids)
 {
     for (char* separator = ids; ; ++separator) {
         if (*separator == ',' || *separator == 0) {
-            if (Options.track_id_count >= AP4_SPLIT_MAX_TRACK_IDS) {
+            if (HlsOptions.track_id_count >= AP4_SPLIT_MAX_TRACK_IDS) {
                 return false;
             }
             bool the_end = (*separator == 0);
             *separator = 0;
-            Options.track_ids[Options.track_id_count++] = (unsigned int)strtoul(ids, NULL, 10);
+            HlsOptions.track_ids[HlsOptions.track_id_count++] = (unsigned int)strtoul(ids, NULL, 10);
             if (the_end) break;
             ids = separator+1;
         }
@@ -143,9 +143,9 @@ ParseTrackIds(char* ids)
 static bool
 TrackIdMatches(unsigned int track_id)
 {
-    if (Options.track_id_count == 0) return true;
-    for (unsigned int i=0; i<Options.track_id_count; i++) {
-        if (Options.track_ids[i] == track_id) return true;
+    if (HlsOptions.track_id_count == 0) return true;
+    for (unsigned int i=0; i < HlsOptions.track_id_count; i++) {
+        if (HlsOptions.track_ids[i] == track_id) return true;
     }
     
     return false;
@@ -162,56 +162,56 @@ main(int argc, char** argv)
     }
     
     // default options
-    Options.verbose                = false;
-    Options.input                  = NULL;
-    Options.init_segment_name      = AP4_SPLIT_DEFAULT_INIT_SEGMENT_NAME;
-    Options.media_segment_name     = AP4_SPLIT_DEFAULT_MEDIA_SEGMENT_NAME;
-    Options.pattern_params         = AP4_SPLIT_DEFAULT_PATTERN_PARAMS;
-    Options.start_number           = 1;
-    Options.track_id_count         = 0;
-    Options.audio_only             = false;
-    Options.video_only             = false;
-    Options.init_only              = false;
+    HlsOptions.verbose                = false;
+    HlsOptions.input                  = NULL;
+    HlsOptions.init_segment_name      = AP4_SPLIT_DEFAULT_INIT_SEGMENT_NAME;
+    HlsOptions.media_segment_name     = AP4_SPLIT_DEFAULT_MEDIA_SEGMENT_NAME;
+    HlsOptions.pattern_params         = AP4_SPLIT_DEFAULT_PATTERN_PARAMS;
+    HlsOptions.start_number           = 1;
+    HlsOptions.track_id_count         = 0;
+    HlsOptions.audio_only             = false;
+    HlsOptions.video_only             = false;
+    HlsOptions.init_only              = false;
     
     // parse command line
     AP4_Result result;
     char** args = argv+1;
     while (char* arg = *args++) {
         if (!strcmp(arg, "--verbose")) {
-            Options.verbose = true;
+            HlsOptions.verbose = true;
         } else if (!strcmp(arg, "--init-segment")) {
             if (*args == NULL) {
                 fprintf(stderr, "ERROR: missing argument after --init-segment option\n");
                 return 1;
             }
-            Options.init_segment_name = *args++;
+            HlsOptions.init_segment_name = *args++;
         } else if (!strcmp(arg, "--media-segment")) {
             if (*args == NULL) {
                 fprintf(stderr, "ERROR: missing argument after --media-segment option\n");
                 return 1;
             }
-            Options.media_segment_name = *args++;
+            HlsOptions.media_segment_name = *args++;
         } else if (!strcmp(arg, "--pattern-parameters")) {
             if (*args == NULL) {
                 fprintf(stderr, "ERROR: missing argument after --pattern-params option\n");
                 return 1;
             }
-            Options.pattern_params = *args++;
+            HlsOptions.pattern_params = *args++;
         } else if (!strcmp(arg, "--track-id")) {
             if (!ParseTrackIds(*args++)) {
                 fprintf(stderr, "ERROR: invalid argument for --track-id\n");
                 return 1;
             }
         } else if (!strcmp(arg, "--start-number")) {
-            Options.start_number = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.start_number = (unsigned int)strtoul(*args++, NULL, 10);
         } else if (!strcmp(arg, "--init-only")) {
-            Options.init_only = true;
+            HlsOptions.init_only = true;
         } else if (!strcmp(arg, "--audio")) {
-            Options.audio_only = true;
+            HlsOptions.audio_only = true;
         } else if (!strcmp(arg, "--video")) {
-            Options.video_only = true;
-        } else if (Options.input == NULL) {
-            Options.input = arg;
+            HlsOptions.video_only = true;
+        } else if (HlsOptions.input == NULL) {
+            HlsOptions.input = arg;
         } else {
             fprintf(stderr, "ERROR: unexpected argument\n");
             return 1;
@@ -219,25 +219,25 @@ main(int argc, char** argv)
     }
 
     // check args
-    if (Options.input == NULL) {
+    if (HlsOptions.input == NULL) {
         fprintf(stderr, "ERROR: missing input file name\n");
         return 1;
     }
-    if ((Options.audio_only     && (Options.video_only || Options.track_id_count)) ||
-        (Options.video_only     && (Options.audio_only || Options.track_id_count)) ||
-        (Options.track_id_count && (Options.audio_only || Options.video_only    ))) {
+    if ((HlsOptions.audio_only && (HlsOptions.video_only || HlsOptions.track_id_count)) ||
+        (HlsOptions.video_only && (HlsOptions.audio_only || HlsOptions.track_id_count)) ||
+        (HlsOptions.track_id_count && (HlsOptions.audio_only || HlsOptions.video_only    ))) {
         fprintf(stderr, "ERROR: --audio, --video and --track-id options are mutualy exclusive\n");
         return 1;
     }
-    if (strlen(Options.pattern_params) < 1) {
+    if (strlen(HlsOptions.pattern_params) < 1) {
         fprintf(stderr, "ERROR: --pattern-params argument is too short\n");
         return 1;
     }
-    if (strlen(Options.pattern_params) > 2) {
+    if (strlen(HlsOptions.pattern_params) > 2) {
         fprintf(stderr, "ERROR: --pattern-params argument is too long\n");
         return 1;
     }
-    const char* cursor = Options.pattern_params;
+    const char* cursor = HlsOptions.pattern_params;
     while (*cursor) {
         if (*cursor != 'I' && *cursor != 'N') {
             fprintf(stderr, "ERROR: invalid pattern parameter '%c'\n", *cursor);
@@ -248,7 +248,7 @@ main(int argc, char** argv)
     
 	// create the input stream
     AP4_ByteStream* input = NULL;
-    result = AP4_FileByteStream::Create(Options.input, AP4_FileByteStream::STREAM_MODE_READ, input);
+    result = AP4_FileByteStream::Create(HlsOptions.input, AP4_FileByteStream::STREAM_MODE_READ, input);
     if (AP4_FAILED(result)) {
         fprintf(stderr, "ERROR: cannot open input (%d)\n", result);
         return 1;
@@ -263,25 +263,25 @@ main(int argc, char** argv)
     }
     
     // filter tracks if required
-    if (Options.audio_only) {
+    if (HlsOptions.audio_only) {
         AP4_Track* track = movie->GetTrack(AP4_Track::TYPE_AUDIO);
         if (track == NULL) {
             fprintf(stderr, "--audio option specified, but no audio track found\n");
             return 1;
         }
-        Options.track_ids[0]   = track->GetId();
-        Options.track_id_count = 1;
-    } else if (Options.video_only) {
+        HlsOptions.track_ids[0]   = track->GetId();
+        HlsOptions.track_id_count = 1;
+    } else if (HlsOptions.video_only) {
         AP4_Track* track = movie->GetTrack(AP4_Track::TYPE_VIDEO);
         if (track == NULL) {
             fprintf(stderr, "--video option specified, but no video track found\n");
             return 1;
         }
-        Options.track_ids[0]   = track->GetId();
-        Options.track_id_count = 1;
-    } else if (Options.track_id_count) {
-        for (unsigned int i=0; i<Options.track_id_count; i++) {
-            AP4_Track* track = movie->GetTrack(Options.track_ids[i]);
+        HlsOptions.track_ids[0]   = track->GetId();
+        HlsOptions.track_id_count = 1;
+    } else if (HlsOptions.track_id_count) {
+        for (unsigned int i=0; i < HlsOptions.track_id_count; i++) {
+            AP4_Track* track = movie->GetTrack(HlsOptions.track_ids[i]);
             if (track == NULL) {
                 fprintf(stderr, "--track-id option specified, but no such track found\n");
                 return 1;
@@ -291,7 +291,7 @@ main(int argc, char** argv)
     
     // save the init segment
     AP4_ByteStream* output = NULL;
-    result = AP4_FileByteStream::Create(Options.init_segment_name, AP4_FileByteStream::STREAM_MODE_WRITE, output);
+    result = AP4_FileByteStream::Create(HlsOptions.init_segment_name, AP4_FileByteStream::STREAM_MODE_WRITE, output);
     if (AP4_FAILED(result)) {
         fprintf(stderr, "ERROR: cannot open output file (%d)\n", result);
         return 1;
@@ -304,7 +304,7 @@ main(int argc, char** argv)
             return 1;
         }
     }
-    if (Options.track_id_count) {
+    if (HlsOptions.track_id_count) {
         AP4_MoovAtom* moov = movie->GetMoovAtom();
         
         // only keep the 'trak' atom that we need
@@ -348,7 +348,7 @@ main(int argc, char** argv)
     AP4_Atom* atom = NULL;
     unsigned int track_id = 0;
     AP4_DefaultAtomFactory atom_factory;
-    for (;!Options.init_only;) {
+    for (;!HlsOptions.init_only;) {
         // process the next atom
         result = atom_factory.CreateAtomFromStream(*input, atom);
         if (AP4_FAILED(result)) break;
@@ -372,11 +372,11 @@ main(int argc, char** argv)
     
             // check if this fragment has more than one traf
             if (traf_count > 1) {
-                if (Options.audio_only) {
+                if (HlsOptions.audio_only) {
                     fprintf(stderr, "ERROR: --audio option incompatible with multi-track fragments");
                     return 1;
                 }
-                if (Options.video_only) {
+                if (HlsOptions.video_only) {
                     fprintf(stderr, "ERROR: --video option incompatible with multi-track fragments");
                     return 1;
                 }
@@ -385,27 +385,27 @@ main(int argc, char** argv)
             
             // open a new file for this fragment if this moof is a segment start
             char segment_name[4096];
-            if (Options.track_id_count == 0 || track_id == Options.track_ids[0]) {
+            if (HlsOptions.track_id_count == 0 || track_id == HlsOptions.track_ids[0]) {
                 if (output) {
                     output->Release();
                     output = NULL;
                 }
 
                 AP4_UI64 p[2] = {0,0};
-                unsigned int params_len = (unsigned int)strlen(Options.pattern_params);
+                unsigned int params_len = (unsigned int)strlen(HlsOptions.pattern_params);
                 for (unsigned int i=0; i<params_len; i++) {
-                    if (Options.pattern_params[i] == 'I') {
+                    if (HlsOptions.pattern_params[i] == 'I') {
                         p[i] = track_id;
-                    } else if (Options.pattern_params[i] == 'N') {
-                        p[i] = NextFragmentIndex(track_id)+Options.start_number;
+                    } else if (HlsOptions.pattern_params[i] == 'N') {
+                        p[i] = NextFragmentIndex(track_id) + HlsOptions.start_number;
                     }
                 }
                 switch (params_len) {
                     case 1:
-                        sprintf(segment_name, Options.media_segment_name, p[0]);
+                        sprintf(segment_name, HlsOptions.media_segment_name, p[0]);
                         break;
                     case 2:
-                        sprintf(segment_name, Options.media_segment_name, p[0], p[1]);
+                        sprintf(segment_name, HlsOptions.media_segment_name, p[0], p[1]);
                         break;
                     default:
                         segment_name[0] = 0;

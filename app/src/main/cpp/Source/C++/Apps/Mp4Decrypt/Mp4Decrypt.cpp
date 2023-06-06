@@ -51,7 +51,7 @@ PrintUsageAndExit()
             BANNER 
             "\n\n"
             "usage: mp4decrypt [options] <input> <output>\n"
-            "Options are:\n"
+            "HlsOptions are:\n"
             "  --show-progress : show progress details\n"
             "  --key <id>:<k>\n"
             "      <id> is either a track ID in decimal or a 128-bit KID in hex,\n"

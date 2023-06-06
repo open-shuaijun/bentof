@@ -31,6 +31,6 @@ Common optional parameters for all types:
 
 If no type is specified for an input, the type will be inferred from the file extension
 
-Options:
+HlsOptions:
   --verbose: show more details
 ```

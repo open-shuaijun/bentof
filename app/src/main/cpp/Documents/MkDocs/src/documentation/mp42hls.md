@@ -5,7 +5,7 @@ MP4 To HLS File Converter - Version 1.2
 (c) 2002-2018 Axiomatic Systems, LLC
 
 usage: mp42hls [options] <input>
-Options:
+HlsOptions:
   --verbose
   --show-info
   --hls-version <n> (default: 3)

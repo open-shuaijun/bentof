@@ -5,7 +5,7 @@ MP4 File Info - Version 1.3.4
 (c) 2002-2017 Axiomatic Systems, LLC
 
 usage: mp4info [options] <input>
-Options:
+HlsOptions:
   --verbose:          show extended information when available
   --format <format>:  display the information in this format.
                       <format> is: text (default) or json

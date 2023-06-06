@@ -60,7 +60,7 @@ typedef enum {
 
 struct Options {
     OutputFormat format;
-} Options;
+} HlsOptions;
 
 /*----------------------------------------------------------------------
 |   PrintUsageAndExit
@@ -71,7 +71,7 @@ PrintUsageAndExit()
     fprintf(stderr, 
             BANNER 
             "\n\nusage: mp4info [options] <input>\n"
-            "Options:\n"
+            "HlsOptions:\n"
             "  --verbose:          show extended information when available\n"
             "  --format <format>:  display the information in this format.\n"
             "                      <format> is: text (default) or json\n"
@@ -300,7 +300,7 @@ ShowMpegAudioSampleDescription(AP4_MpegAudioSampleDescription& mpeg_audio_desc)
         mpeg_audio_desc.GetMpeg4AudioObjectType();
     const char* object_type_string = AP4_MpegAudioSampleDescription::GetMpeg4AudioObjectTypeString(object_type);
     
-    switch (Options.format) {
+    switch (HlsOptions.format) {
         case TEXT_FORMAT:
             printf("    MPEG-4 Audio Object Type: %d (%s)\n", object_type, object_type_string);
             break;
@@ -317,7 +317,7 @@ ShowMpegAudioSampleDescription(AP4_MpegAudioSampleDescription& mpeg_audio_desc)
         AP4_Mp4AudioDecoderConfig dec_config;
         AP4_Result result = dec_config.Parse(dsi.GetData(), dsi.GetDataSize());
         if (AP4_SUCCEEDED(result)) {
-            switch (Options.format) {
+            switch (HlsOptions.format) {
                 case TEXT_FORMAT:
                     printf("    MPEG-4 Audio Decoder Config:\n");
                     printf("      Sampling Frequency: %d\n", dec_config.m_SamplingFrequency);
@@ -1090,7 +1090,7 @@ ShowSampleDescription_Json(AP4_SampleDescription& description, bool verbose)
 static void
 ShowSampleDescription(AP4_SampleDescription& description, bool verbose)
 {
-    switch (Options.format) {
+    switch (HlsOptions.format) {
         case TEXT_FORMAT: ShowSampleDescription_Text(description, verbose); break;
         case JSON_FORMAT: ShowSampleDescription_Json(description, verbose); break;
     }
@@ -1520,7 +1520,7 @@ ShowTrackInfo_Json(AP4_Movie& movie, AP4_Track& track, AP4_ByteStream& stream, b
 static void
 ShowTrackInfo(AP4_Movie& movie, AP4_Track& track, AP4_ByteStream& stream, bool show_samples, bool show_sample_data, bool verbose, bool fast)
 {
-    switch (Options.format) {
+    switch (HlsOptions.format) {
         case TEXT_FORMAT: 
             ShowTrackInfo_Text(movie, track, stream, show_samples, show_sample_data, verbose, fast);
             break;
@@ -1537,7 +1537,7 @@ ShowTrackInfo(AP4_Movie& movie, AP4_Track& track, AP4_ByteStream& stream, bool s
 static void
 ShowMovieInfo(AP4_Movie& movie)
 {
-    switch (Options.format) {
+    switch (HlsOptions.format) {
         case TEXT_FORMAT:
             printf("Movie:\n");
             printf("  duration:   %lld (movie timescale units)\n", movie.GetDuration());
@@ -1568,7 +1568,7 @@ ShowFileInfo(AP4_File& file)
     char four_cc[5];
 
     AP4_FormatFourChars(four_cc, file_type->GetMajorBrand());
-    switch (Options.format) {
+    switch (HlsOptions.format) {
         case TEXT_FORMAT:
             printf("File:\n");
             printf("  major brand:      %s\n", four_cc);
@@ -1583,13 +1583,13 @@ ShowFileInfo(AP4_File& file)
     }
     
     // compatible brands
-    if (Options.format == JSON_FORMAT) printf("  \"compatible_brands\":[");
+    if (HlsOptions.format == JSON_FORMAT) printf("  \"compatible_brands\":[");
     const char* sep = "";
     for (unsigned int i=0; i<file_type->GetCompatibleBrands().ItemCount(); i++) {
         AP4_UI32 cb = file_type->GetCompatibleBrands()[i];
         if (cb == 0) continue;
         AP4_FormatFourChars(four_cc, cb);
-        switch (Options.format) {
+        switch (HlsOptions.format) {
             case TEXT_FORMAT:
                 printf("  compatible brand: %s\n", four_cc);
                 break;
@@ -1601,12 +1601,12 @@ ShowFileInfo(AP4_File& file)
         }
     }
     
-    if (Options.format == JSON_FORMAT) {
+    if (HlsOptions.format == JSON_FORMAT) {
         printf("],\n");
     }
 
     // fast-start
-    switch (Options.format) {
+    switch (HlsOptions.format) {
         case TEXT_FORMAT:
             printf("  fast start:       %s\n\n", file.IsMoovBeforeMdat() ? "yes" : "no");
             break;
@@ -1624,18 +1624,18 @@ ShowFileInfo(AP4_File& file)
 static void
 ShowTracks(AP4_Movie& movie, AP4_List<AP4_Track>& tracks, AP4_ByteStream& stream, bool show_samples, bool show_sample_data, bool verbose, bool fast)
 {
-    if (Options.format == JSON_FORMAT) printf("\"tracks\":[\n");
+    if (HlsOptions.format == JSON_FORMAT) printf("\"tracks\":[\n");
     int index=1;
     for (AP4_List<AP4_Track>::Item* track_item = tracks.FirstItem();
          track_item;
          track_item = track_item->GetNext(), ++index) {
-        if (Options.format == TEXT_FORMAT) {
+        if (HlsOptions.format == TEXT_FORMAT) {
             printf("Track %d:\n", index); 
         }
-        if (Options.format == JSON_FORMAT && index > 1) printf(",\n"); 
+        if (HlsOptions.format == JSON_FORMAT && index > 1) printf(",\n");
         ShowTrackInfo(movie, *track_item->GetData(), stream, show_samples, show_sample_data, verbose, fast);
     }
-    if (Options.format == JSON_FORMAT) printf("]\n");
+    if (HlsOptions.format == JSON_FORMAT) printf("]\n");
 }
 
 /*----------------------------------------------------------------------
@@ -1644,7 +1644,7 @@ ShowTracks(AP4_Movie& movie, AP4_List<AP4_Track>& tracks, AP4_ByteStream& stream
 static void
 ShowMarlinTracks(AP4_File& file, AP4_ByteStream& stream, AP4_List<AP4_Track>& tracks, bool show_samples, bool show_sample_data, bool verbose, bool fast)
 {
-    if (Options.format != TEXT_FORMAT) return;
+    if (HlsOptions.format != TEXT_FORMAT) return;
     
     AP4_List<AP4_MarlinIpmpParser::SinfEntry> sinf_entries;
     AP4_Result result = AP4_MarlinIpmpParser::Parse(file, stream, sinf_entries);
@@ -1838,7 +1838,7 @@ main(int argc, char** argv)
     if (argc < 2) {
         PrintUsageAndExit();
     }
-    Options.format = TEXT_FORMAT;
+    HlsOptions.format = TEXT_FORMAT;
     const char* filename         = NULL;
     bool        verbose          = false;
     bool        show_samples     = false;
@@ -1853,9 +1853,9 @@ main(int argc, char** argv)
             if (argv) {
                 arg = *++argv;
                 if (!strcmp(arg, "text")) {
-                    Options.format = TEXT_FORMAT;
+                    HlsOptions.format = TEXT_FORMAT;
                 } else if (!strcmp(arg, "json")) {
-                    Options.format = JSON_FORMAT;
+                    HlsOptions.format = JSON_FORMAT;
                 } else {
                     fprintf(stderr, "ERROR: unsupported format\n");
                     return 1;
@@ -1897,7 +1897,7 @@ main(int argc, char** argv)
         return 1;
     }
 
-    if (Options.format == JSON_FORMAT) printf("{\n");
+    if (HlsOptions.format == JSON_FORMAT) printf("{\n");
     
     AP4_File* file = new AP4_File(*input, true);
     ShowFileInfo(*file);
@@ -1908,7 +1908,7 @@ main(int argc, char** argv)
         ShowMovieInfo(*movie);
 
         AP4_List<AP4_Track>& tracks = movie->GetTracks();
-        if (Options.format == TEXT_FORMAT) {
+        if (HlsOptions.format == TEXT_FORMAT) {
             printf("Found %d Tracks\n", tracks.ItemCount());
         }
 
@@ -1923,7 +1923,7 @@ main(int argc, char** argv)
         }
         
         if (movie->HasFragments() && show_samples) {
-            if (Options.format == TEXT_FORMAT) {
+            if (HlsOptions.format == TEXT_FORMAT) {
                 ShowFragments_Text(*movie, verbose, show_sample_data, input);
             }
         }
@@ -1932,7 +1932,7 @@ main(int argc, char** argv)
         if (ftyp && ftyp->GetMajorBrand() == AP4_OMA_DCF_BRAND_ODCF) {
             ShowDcfInfo(*file);
         } else {
-            if (Options.format == TEXT_FORMAT) {
+            if (HlsOptions.format == TEXT_FORMAT) {
                 printf("No movie found in the file\n");
             } else {
                 printf("\"movie\":{}\n");
@@ -1940,7 +1940,7 @@ main(int argc, char** argv)
         }
     }
     
-    if (Options.format == JSON_FORMAT) printf("}\n");
+    if (HlsOptions.format == JSON_FORMAT) printf("}\n");
 
     input->Release();
     delete file;

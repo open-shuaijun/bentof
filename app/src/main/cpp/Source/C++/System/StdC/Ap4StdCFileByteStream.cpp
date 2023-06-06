@@ -224,6 +224,7 @@ AP4_StdcFileByteStream::Create(AP4_FileByteStream*      delegator,
     FILE* file = NULL;
     AP4_Position size = 0;
     if (!strcmp(name, "-stdin") || !strcmp(name, "-stdin#")) {
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "sssssssssssssssssss=%s", name);
         file = stdin;
 #if defined(_WIN32)
         if (name[6] == '#') {
@@ -232,6 +233,7 @@ AP4_StdcFileByteStream::Create(AP4_FileByteStream*      delegator,
 #endif
     } else if (!strcmp(name, "-stdout") || !strcmp(name, "-stdout#")) {
         file = stdout;
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "fffffffffffffffffffffffff=%s", name);
 #if defined(_WIN32)
         if (name[7] == '#') {
             _setmode(fileno(stdout), O_BINARY);
@@ -239,7 +241,9 @@ AP4_StdcFileByteStream::Create(AP4_FileByteStream*      delegator,
 #endif
     } else if (!strcmp(name, "-stderr")) {
         file = stderr;
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "ggggggggggggggggggggggggggg=%s", name);
     } else {
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "vvvvvvvvvvvvvvvvvvvvvv=%s", name);
         int open_result;
         switch (mode) {
           case AP4_FileByteStream::STREAM_MODE_READ:

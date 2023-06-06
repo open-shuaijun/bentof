@@ -22,7 +22,7 @@ using namespace std;
 /*----------------------------------------------------------------------
 |   constants
 +---------------------------------------------------------------------*/
-#define BANNER "MP4 Elementary Stream Multiplexer - Version 3.0\n"\
+#define MUX_BANNER "MP4 Elementary Stream Multiplexer - Version 3.0\n"\
                "(Bento4 Version " AP4_VERSION_STRING ")\n"\
                "(c) 2002-20020 Axiomatic Systems, LLC"
 
@@ -34,7 +34,7 @@ const unsigned int AP4_MUX_READ_BUFFER_SIZE = 65536;
 +---------------------------------------------------------------------*/
 static struct {
     bool verbose;
-} Options;
+} MuxOptions;
 
 /*----------------------------------------------------------------------
 |   SampleOrder

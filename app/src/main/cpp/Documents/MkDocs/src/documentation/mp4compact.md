@@ -5,6 +5,6 @@ MP4 Compacter - Version 1.0
 (c) 2002-2011 Axiomatic Systems, LLC
 
 usage: mp4compact [options] <input> <output>
-Options:
+HlsOptions:
   --verbose
 ```

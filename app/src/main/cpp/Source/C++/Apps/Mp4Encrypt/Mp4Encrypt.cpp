@@ -54,7 +54,7 @@ PrintUsageAndExit()
         "     <method> is OMA-PDCF-CBC, OMA-PDCF-CTR, MARLIN-IPMP-ACBC,\n"
         "     MARLIN-IPMP-ACGK, ISMA-IAEC, PIFF-CBC, PIFF-CTR, MPEG-CENC,\n"
         "     MPEG-CBC1, MPEG-CENS, MPEG-CBCS\n"
-        "  Options:\n"
+        "  HlsOptions:\n"
         "  --show-progress\n"
         "      Show progress details\n"
         "  --fragments-info <filename>\n"

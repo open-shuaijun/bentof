@@ -8,7 +8,7 @@ usage: mp4encrypt --method <method> [options] <input> <output>
      <method> is OMA-PDCF-CBC, OMA-PDCF-CTR, MARLIN-IPMP-ACBC,
      MARLIN-IPMP-ACGK, ISMA-IAEC, PIFF-CBC, PIFF-CTR, MPEG-CENC,
      MPEG-CBC1, MPEG-CENS, MPEG-CBCS
-  Options:
+  HlsOptions:
   --show-progress
       Show progress details
   --fragments-info <filename>

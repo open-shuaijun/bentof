@@ -9,5 +9,7 @@
 #include "string"
 #include "android/log.h"
 #include "../Apps/Mp4Mux.h"
+#include "../Apps/Mp42Hls.h"
+#include "../Apps/Mp42Ts.h"
 
 #endif //BENTO_BENTOF_H

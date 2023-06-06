@@ -93,7 +93,7 @@ class MediaSource:
 
 def main():
     # parse options
-    global Options
+    global HlsOptions
     parser = OptionParser(usage="%prog [options] <media-file>",
                           description="<media-file> is the path to a source video file. Version " + VERSION + " r" + SVN_REVISION[-5:-2])
     parser.add_option('-v', '--verbose', dest="verbose", action='store_true', default=False,
@@ -131,7 +131,7 @@ def main():
     parser.add_option('-f', '--force', dest="force_output", action="store_true",
                       help="Overwrite output files if they already exist", default=False)
     (options, args) = parser.parse_args()
-    Options = options
+    HlsOptions = options
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
@@ -214,11 +214,11 @@ def main():
 
 ###########################
 if __name__ == '__main__':
-    Options = None # global
+    HlsOptions = None # global
     try:
         main()
     except Exception as err:
-        if Options and Options.debug:
+        if HlsOptions and HlsOptions.debug:
             raise
         else:
             PrintErrorAndExit('ERROR: %s\n' % str(err))

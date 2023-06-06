@@ -32,6 +32,7 @@
 #include "Ap4Types.h"
 #include "Ap4ByteStream.h"
 #include "Ap4Config.h"
+#include "android/log.h"
 
 #ifndef _AP4_FILE_BYTE_STREAM_H_
 #define _AP4_FILE_BYTE_STREAM_H_

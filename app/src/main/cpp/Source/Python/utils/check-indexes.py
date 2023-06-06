@@ -13,9 +13,9 @@ if platform.startswith('linux'):
 elif platform.startswith('darwin'):
     platform = 'macosx'
 
-class Options(object): pass
+class HlsOptions(object): pass
 
-options = Options()
+options = HlsOptions()
 options.debug = False
 options.verbose = False
 options.min_buffer_time = 0.0

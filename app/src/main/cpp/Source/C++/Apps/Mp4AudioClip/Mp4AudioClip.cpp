@@ -51,7 +51,7 @@ PrintUsageAndExit()
         BANNER 
         "\n\n"
         "usage: mp4audioclip [options] <input> <output>\n"
-        "Options:\n"
+        "HlsOptions:\n"
         "  --start <time>         : start time in milliseconds (default = 0)\n"
         "  --duration <duration>  : clip duration in milliseconds (default = until end)\n"
         );

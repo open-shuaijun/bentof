@@ -86,7 +86,7 @@ static struct {
     AP4_List<Command> commands;
     bool              need_input;
     bool              need_output;
-} Options;
+} HlsOptions;
 
 static const int LINE_WIDTH = 79;
 
@@ -153,48 +153,48 @@ ParseCommandLine(int argc, char** argv)
         if (AP4_CompareStrings("--help", argv[i]) == 0) {
         PrintUsageAndExit();
         } else if (AP4_CompareStrings("--show-tags", argv[i]) == 0) {
-            Options.commands.Add(new Command(Command::TYPE_SHOW_TAGS));
-            Options.need_input = true;
+            HlsOptions.commands.Add(new Command(Command::TYPE_SHOW_TAGS));
+            HlsOptions.need_input = true;
         } else if (AP4_CompareStrings("--list-keys", argv[i]) == 0) {
-            Options.commands.Add(new Command(Command::TYPE_LIST_KEYS));
+            HlsOptions.commands.Add(new Command(Command::TYPE_LIST_KEYS));
         } else if (AP4_CompareStrings("--list-symbols", argv[i]) == 0) {
-            Options.commands.Add(new Command(Command::TYPE_LIST_SYMBOLS));
+            HlsOptions.commands.Add(new Command(Command::TYPE_LIST_SYMBOLS));
         } else if (AP4_CompareStrings("--add", argv[i]) == 0) {
             if (i == argc-1) {
                 fprintf(stderr, "ERROR: missing argument after --add command");
                 PrintUsageAndExit();
             }
-            Options.commands.Add(new Command(Command::TYPE_ADD, argv[++i]));
-            Options.need_input  = true;
-            Options.need_output = true;
+            HlsOptions.commands.Add(new Command(Command::TYPE_ADD, argv[++i]));
+            HlsOptions.need_input  = true;
+            HlsOptions.need_output = true;
         } else if (AP4_CompareStrings("--set", argv[i]) == 0) {
             if (i == argc-1) {
                 fprintf(stderr, "ERROR: missing argument after --set command");
                 PrintUsageAndExit();
             }
-            Options.commands.Add(new Command(Command::TYPE_SET, argv[++i]));
-            Options.need_input  = true;
-            Options.need_output = true;
+            HlsOptions.commands.Add(new Command(Command::TYPE_SET, argv[++i]));
+            HlsOptions.need_input  = true;
+            HlsOptions.need_output = true;
         } else if (AP4_CompareStrings("--remove", argv[i]) == 0) {
             if (i == argc-1) {
                 fprintf(stderr, "ERROR: missing argument after --remove command");
                 PrintUsageAndExit();
             }
-            Options.commands.Add(new Command(Command::TYPE_REMOVE, argv[++i]));
-            Options.need_input  = true;
-            Options.need_output = true;
+            HlsOptions.commands.Add(new Command(Command::TYPE_REMOVE, argv[++i]));
+            HlsOptions.need_input  = true;
+            HlsOptions.need_output = true;
         } else if (AP4_CompareStrings("--extract", argv[i]) == 0) {
             if (i == argc-1) {
                 fprintf(stderr, "ERROR: missing argument after --extract command");
                 PrintUsageAndExit();
             }
-            Options.commands.Add(new Command(Command::TYPE_EXTRACT, argv[++i]));
-            Options.need_input  = true;
+            HlsOptions.commands.Add(new Command(Command::TYPE_EXTRACT, argv[++i]));
+            HlsOptions.need_input  = true;
         } else {
-            if (Options.input_filename == NULL) {
-                Options.input_filename = argv[i];
-            } else if (Options.output_filename == NULL) {
-                Options.output_filename = argv[i];
+            if (HlsOptions.input_filename == NULL) {
+                HlsOptions.input_filename = argv[i];
+            } else if (HlsOptions.output_filename == NULL) {
+                HlsOptions.output_filename = argv[i];
             } else {
                 fprintf(stderr, "ERROR: unpexpected option \"%s\"\n", argv[i]);
                 PrintUsageAndExit();
@@ -202,10 +202,10 @@ ParseCommandLine(int argc, char** argv)
         }
     }
 
-    if (Options.commands.ItemCount() == 0) {
-        if (Options.input_filename) {
-            Options.commands.Add(new Command(Command::TYPE_SHOW_TAGS));
-            Options.need_input = true;
+    if (HlsOptions.commands.ItemCount() == 0) {
+        if (HlsOptions.input_filename) {
+            HlsOptions.commands.Add(new Command(Command::TYPE_SHOW_TAGS));
+            HlsOptions.need_input = true;
         } else {
             PrintUsageAndExit();
         }
@@ -774,33 +774,33 @@ main(int argc, char** argv)
     }
     
     // init options
-    Options.input_filename  = NULL;
-    Options.output_filename = NULL;
-    Options.need_input      = false;
-    Options.need_output     = false;
+    HlsOptions.input_filename  = NULL;
+    HlsOptions.output_filename = NULL;
+    HlsOptions.need_input      = false;
+    HlsOptions.need_output     = false;
 
     // parse command line
     ParseCommandLine(argc-1, argv+1);
 
     // check options
-    if (Options.need_input) {
-        if (Options.input_filename == NULL) {
+    if (HlsOptions.need_input) {
+        if (HlsOptions.input_filename == NULL) {
             fprintf(stderr, "ERROR: input file name missing\n");
             PrintUsageAndExit();
         }
     } else {
-        if (Options.input_filename != NULL) {
+        if (HlsOptions.input_filename != NULL) {
             fprintf(stderr, "ERROR: unexpected input file name\n");
             PrintUsageAndExit();
         }
     }
-    if (Options.need_output) {
-        if (Options.output_filename == NULL) {
+    if (HlsOptions.need_output) {
+        if (HlsOptions.output_filename == NULL) {
             fprintf(stderr, "ERROR: output file name missing\n");
             PrintUsageAndExit();
         }
     } else {
-        if (Options.output_filename != NULL) {
+        if (HlsOptions.output_filename != NULL) {
             fprintf(stderr, "ERROR: unexpected output file name\n");
             PrintUsageAndExit();
         }
@@ -812,8 +812,8 @@ main(int argc, char** argv)
     AP4_MoovAtom*   moov      = NULL;
     AP4_LargeSize   moov_size = 0;
     AP4_Result      result    = AP4_SUCCESS;
-    if (Options.need_input) {
-        result =AP4_FileByteStream::Create(Options.input_filename, AP4_FileByteStream::STREAM_MODE_READ, input);
+    if (HlsOptions.need_input) {
+        result =AP4_FileByteStream::Create(HlsOptions.input_filename, AP4_FileByteStream::STREAM_MODE_READ, input);
         if (AP4_FAILED(result)) {
             fprintf(stderr, "ERROR: cannot open input file\n");
             return 1;
@@ -831,15 +831,15 @@ main(int argc, char** argv)
     }
 
     AP4_ByteStream* output = NULL;
-    if (Options.need_output) {
-        result = AP4_FileByteStream::Create(Options.output_filename, AP4_FileByteStream::STREAM_MODE_WRITE, output);
+    if (HlsOptions.need_output) {
+        result = AP4_FileByteStream::Create(HlsOptions.output_filename, AP4_FileByteStream::STREAM_MODE_WRITE, output);
         if (AP4_FAILED(result)) {
             fprintf(stderr, "ERROR: cannot open output file for writing\n");
             return 1;
         }
     }
 
-    for (AP4_List<Command>::Item* item = Options.commands.FirstItem();
+    for (AP4_List<Command>::Item* item = HlsOptions.commands.FirstItem();
          item;
          item = item->GetNext()) {
         result = AP4_SUCCESS;
@@ -897,7 +897,7 @@ end:
     delete file;
     delete input;
     delete output;
-    Options.commands.DeleteReferences();
+    HlsOptions.commands.DeleteReferences();
 
     return result;
 }

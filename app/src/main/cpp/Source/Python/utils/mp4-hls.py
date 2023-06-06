@@ -108,7 +108,7 @@ def AnalyzeSources(options, media_sources):
 
         # get the file info
         print('Parsing media file', media_file)
-        mp4_file = Mp4File(Options, media_source)
+        mp4_file = Mp4File(HlsOptions, media_source)
         media_source.mp4_file = mp4_file
 
         # remember we have parsed this file
@@ -494,7 +494,7 @@ def OutputHls(options, media_sources):
             master_playlist.write(ext_x_i_frame_stream_inf+'\n')
 
 #############################################
-Options = None
+HlsOptions = None
 def main():
     # determine the platform binary name
     host_platform = ''
@@ -574,16 +574,16 @@ def main():
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
-    global Options
-    Options = options
+    global HlsOptions
+    HlsOptions = options
 
     # set some mandatory options that utils rely upon
     options.min_buffer_time = 0.0
 
     if options.exec_dir != "-":
-        if not path.exists(Options.exec_dir):
-            print(Options.exec_dir)
-            PrintErrorAndExit('Executable directory does not exist ('+Options.exec_dir+'), use --exec-dir')
+        if not path.exists(HlsOptions.exec_dir):
+            print(HlsOptions.exec_dir)
+            PrintErrorAndExit('Executable directory does not exist ('+HlsOptions.exec_dir+'), use --exec-dir')
 
     # check options
     if options.output_encryption_key:
@@ -687,7 +687,7 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as err:
-        if Options and Options.debug:
+        if HlsOptions and HlsOptions.debug:
             raise
         else:
             PrintErrorAndExit('ERROR: %s\n' % str(err))

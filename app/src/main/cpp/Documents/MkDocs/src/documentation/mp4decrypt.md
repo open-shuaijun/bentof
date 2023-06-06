@@ -5,7 +5,7 @@ MP4 Decrypter - Version 1.4
 (c) 2002-2015 Axiomatic Systems, LLC
 
 usage: mp4decrypt [options] <input> <output>
-Options are:
+HlsOptions are:
   --show-progress : show progress details
   --key <id>:<k>
       <id> is either a track ID in decimal or a 128-bit KID in hex,

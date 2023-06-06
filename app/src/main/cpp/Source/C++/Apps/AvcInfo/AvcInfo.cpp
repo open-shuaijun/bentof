@@ -52,7 +52,7 @@ PrintUsageAndExit()
     fprintf(stderr, 
             BANNER 
             "\n\nusage: avcinfo [options] <input>\n"
-            "Options:\n"
+            "HlsOptions:\n"
             "  --verbose: show more details\n");
     exit(1);
 }

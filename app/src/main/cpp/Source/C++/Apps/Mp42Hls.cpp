@@ -29,102 +29,17 @@
 /*----------------------------------------------------------------------
 |   includes
 +---------------------------------------------------------------------*/
-#include <stdio.h>
-#include <stdlib.h>
 
-#include "Ap4.h"
-#include "Ap4StreamCipher.h"
-#include "Ap4Mp4AudioInfo.h"
+#include "Mp42Hls.h"
 
-/*----------------------------------------------------------------------
-|   constants
-+---------------------------------------------------------------------*/
-#define BANNER "MP4 To HLS File Converter - Version 1.2\n"\
-               "(Bento4 Version " AP4_VERSION_STRING ")\n"\
-               "(c) 2002-2018 Axiomatic Systems, LLC"
- 
-/*----------------------------------------------------------------------
-|   options
-+---------------------------------------------------------------------*/
-typedef enum {
-    ENCRYPTION_MODE_NONE,
-    ENCRYPTION_MODE_AES_128,
-    ENCRYPTION_MODE_SAMPLE_AES
-} EncryptionMode;
-
-typedef enum {
-    ENCRYPTION_IV_MODE_NONE,
-    ENCRYPTION_IV_MODE_SEQUENCE,
-    ENCRYPTION_IV_MODE_RANDOM,
-    ENCRYPTION_IV_MODE_FPS
-} EncryptionIvMode;
-
-typedef enum {
-    AUDIO_FORMAT_TS,
-    AUDIO_FORMAT_PACKED
-} AudioFormat;
-
-static struct _Options {
-    const char*           input;
-    bool                  verbose;
-    unsigned int          hls_version;
-    unsigned int          pmt_pid;
-    unsigned int          audio_pid;
-    unsigned int          video_pid;
-    int                   audio_track_id;
-    int                   video_track_id;
-    AudioFormat           audio_format;
-    const char*           index_filename;
-    const char*           iframe_index_filename;
-    bool                  output_single_file;
-    bool                  show_info;
-    const char*           segment_filename_template;
-    const char*           segment_url_template;
-    unsigned int          segment_duration;
-    unsigned int          segment_duration_threshold;
-    const char*           allow_cache;
-    const char*           encryption_key_hex;
-    AP4_UI08              encryption_key[16];
-    AP4_UI08              encryption_iv[16];
-    EncryptionMode        encryption_mode;
-    EncryptionIvMode      encryption_iv_mode;
-    const char*           encryption_key_uri;
-    const char*           encryption_key_format;
-    const char*           encryption_key_format_versions;
-    AP4_Array<AP4_String> encryption_key_lines;
-    AP4_UI64              pcr_offset;
-} HlsOptions;
-
-static struct _Stats {
-    AP4_UI64 segments_total_size;
-    double   segments_total_duration;
-    AP4_UI32 segment_count;
-    double   max_segment_bitrate;
-    AP4_UI64 iframes_total_size;
-    AP4_UI32 iframe_count;
-    double   max_iframe_bitrate;
-} Stats;
-
-/*----------------------------------------------------------------------
-|   constants
-+---------------------------------------------------------------------*/
-static const unsigned int DefaultSegmentDurationThreshold = 15; // milliseconds
-
-const AP4_UI08 AP4_MPEG2_STREAM_TYPE_SAMPLE_AES_AVC             = 0xDB;
-const AP4_UI08 AP4_MPEG2_STREAM_TYPE_SAMPLE_AES_ISO_IEC_13818_7 = 0xCF;
-const AP4_UI08 AP4_MPEG2_STREAM_TYPE_SAMPLE_AES_ATSC_AC3        = 0xC1;
-const AP4_UI08 AP4_MPEG2_STREAM_TYPE_SAMPLE_AES_ATSC_EAC3       = 0xC2;
-const AP4_UI08 AP4_MPEG2_PRIVATE_DATA_INDICATOR_DESCRIPTOR_TAG  = 15;
-const AP4_UI08 AP4_MPEG2_REGISTRATION_DESCRIPTOR_TAG            = 5;
 
 /*----------------------------------------------------------------------
 |   PrintUsageAndExit
 +---------------------------------------------------------------------*/
 static void
-PrintUsageAndExit()
-{
-    fprintf(stderr, 
-            BANNER 
+PrintUsageAndExit() {
+    fprintf(stderr,
+            BANNER
             "\n\nusage: mp42hls [options] <input>\n"
             "HlsOptions:\n"
             "  --verbose\n"
@@ -185,40 +100,16 @@ PrintUsageAndExit()
             "    This option can be used multiple times, once for each preformatted key line to be included in the playlist.\n"
             "    (this option is mutually exclusive with the --encryption-key-uri, --encryption-key-format and --encryption-key-format-versions options)\n"
             "    (the IV and METHOD parameters will automatically be added, so they must not appear in the <ext-x-key-line> argument)\n"
-            );
+    );
     exit(1);
 }
 
-/*----------------------------------------------------------------------
-|   SampleReader
-+---------------------------------------------------------------------*/
-class SampleReader 
-{
-public:
-    virtual ~SampleReader() {}
-    virtual AP4_Result ReadSample(AP4_Sample& sample, AP4_DataBuffer& sample_data) = 0;
-};
 
 /*----------------------------------------------------------------------
 |   TrackSampleReader
 +---------------------------------------------------------------------*/
-class TrackSampleReader : public SampleReader
-{
-public:
-    TrackSampleReader(AP4_Track& track) : m_Track(track), m_SampleIndex(0) {}
-    AP4_Result ReadSample(AP4_Sample& sample, AP4_DataBuffer& sample_data);
-    
-private:
-    AP4_Track&  m_Track;
-    AP4_Ordinal m_SampleIndex;
-};
-
-/*----------------------------------------------------------------------
-|   TrackSampleReader
-+---------------------------------------------------------------------*/
-AP4_Result 
-TrackSampleReader::ReadSample(AP4_Sample& sample, AP4_DataBuffer& sample_data)
-{
+AP4_Result
+TrackSampleHlsReader::ReadSample(AP4_Sample &sample, AP4_DataBuffer &sample_data) {
     if (m_SampleIndex >= m_Track.GetSampleCount()) return AP4_ERROR_EOS;
     return m_Track.ReadSample(m_SampleIndex++, sample, sample_data);
 }
@@ -226,44 +117,28 @@ TrackSampleReader::ReadSample(AP4_Sample& sample, AP4_DataBuffer& sample_data)
 /*----------------------------------------------------------------------
 |   FragmentedSampleReader
 +---------------------------------------------------------------------*/
-class FragmentedSampleReader : public SampleReader 
-{
-public:
-    FragmentedSampleReader(AP4_LinearReader& fragment_reader, AP4_UI32 track_id) :
-        m_FragmentReader(fragment_reader), m_TrackId(track_id) {
-        fragment_reader.EnableTrack(track_id);
-    }
-    AP4_Result ReadSample(AP4_Sample& sample, AP4_DataBuffer& sample_data);
-    
-private:
-    AP4_LinearReader& m_FragmentReader;
-    AP4_UI32          m_TrackId;
-};
-
-/*----------------------------------------------------------------------
-|   FragmentedSampleReader
-+---------------------------------------------------------------------*/
-AP4_Result 
-FragmentedSampleReader::ReadSample(AP4_Sample& sample, AP4_DataBuffer& sample_data)
-{
+AP4_Result
+FragmentedSampleHlsReader::ReadSample(AP4_Sample &sample, AP4_DataBuffer &sample_data) {
     return m_FragmentReader.ReadNextSample(m_TrackId, sample, sample_data);
 }
 
 /*----------------------------------------------------------------------
 |   OpenOutput
 +---------------------------------------------------------------------*/
-static AP4_ByteStream*
-OpenOutput(const char* filename_pattern, unsigned int segment_number)
-{
-    AP4_ByteStream* output = NULL;
+static AP4_ByteStream *
+OpenOutput(const char *filename_pattern, unsigned int segment_number) {
+    AP4_ByteStream *output = NULL;
     char filename[4096];
     sprintf(filename, filename_pattern, segment_number);
-    AP4_Result result = AP4_FileByteStream::Create(filename, AP4_FileByteStream::STREAM_MODE_WRITE, output);
+    AP4_Result result = AP4_FileByteStream::Create(filename, AP4_FileByteStream::STREAM_MODE_WRITE,
+                                                   output);
     if (AP4_FAILED(result)) {
-        fprintf(stderr, "ERROR: cannot open output (%d)\n", result);
+        char msg[256];
+        sprintf(msg, "ERROR: cannot open output (%d)\n", result);
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "失败的文件:%s  filename=%s", msg, filename);
         return NULL;
     }
-    
+
     return output;
 }
 
@@ -271,29 +146,28 @@ OpenOutput(const char* filename_pattern, unsigned int segment_number)
 |   PreventStartCodeEmulation
 +---------------------------------------------------------------------*/
 static void
-PreventStartCodeEmulation(const AP4_UI08* payload, AP4_Size payload_size, AP4_DataBuffer& output)
-{
-    output.Reserve(payload_size*2); // more than enough
-    AP4_Size  output_size = 0;
-    AP4_UI08* buffer = output.UseData();
-    
-	unsigned int zero_counter = 0;
-	for (unsigned int i = 0; i < payload_size; i++) {
-		if (zero_counter == 2) {
+PreventStartCodeEmulation(const AP4_UI08 *payload, AP4_Size payload_size, AP4_DataBuffer &output) {
+    output.Reserve(payload_size * 2); // more than enough
+    AP4_Size output_size = 0;
+    AP4_UI08 *buffer = output.UseData();
+
+    unsigned int zero_counter = 0;
+    for (unsigned int i = 0; i < payload_size; i++) {
+        if (zero_counter == 2) {
             if (payload[i] == 0 || payload[i] == 1 || payload[i] == 2 || payload[i] == 3) {
                 buffer[output_size++] = 3;
                 zero_counter = 0;
             }
-		}
+        }
 
         buffer[output_size++] = payload[i];
 
-		if (payload[i] == 0) {
-			++zero_counter;
-		} else {
-			zero_counter = 0;
+        if (payload[i] == 0) {
+            ++zero_counter;
+        } else {
+            zero_counter = 0;
         }
-	}
+    }
 
     output.SetDataSize(output_size);
 }
@@ -301,49 +175,63 @@ PreventStartCodeEmulation(const AP4_UI08* payload, AP4_Size payload_size, AP4_Da
 /*----------------------------------------------------------------------
 |   EncryptingStream
 +---------------------------------------------------------------------*/
-class EncryptingStream: public AP4_ByteStream {
+class EncryptingStream : public AP4_ByteStream {
 public:
-    static AP4_Result Create(const AP4_UI08* key, const AP4_UI08* iv, AP4_ByteStream* output, EncryptingStream*& stream);
-    virtual AP4_Result ReadPartial(void* , AP4_Size, AP4_Size&) {
+    static AP4_Result Create(const AP4_UI08 *key, const AP4_UI08 *iv, AP4_ByteStream *output,
+                             EncryptingStream *&stream);
+
+    virtual AP4_Result ReadPartial(void *, AP4_Size, AP4_Size &) {
         return AP4_ERROR_NOT_SUPPORTED;
     }
-    virtual AP4_Result WritePartial(const void* buffer,
-                                    AP4_Size    bytes_to_write, 
-                                    AP4_Size&   bytes_written) {
-        AP4_UI08* out = new AP4_UI08[bytes_to_write+16];
-        AP4_Size  out_size = bytes_to_write+16;
-        AP4_Result result = m_StreamCipher->ProcessBuffer((const AP4_UI08*)buffer,
+
+    virtual AP4_Result WritePartial(const void *buffer,
+                                    AP4_Size bytes_to_write,
+                                    AP4_Size &bytes_written) {
+        AP4_UI08 *out = new AP4_UI08[bytes_to_write + 16];
+        AP4_Size out_size = bytes_to_write + 16;
+        AP4_Result result = m_StreamCipher->ProcessBuffer((const AP4_UI08 *) buffer,
                                                           bytes_to_write,
                                                           out,
                                                           &out_size);
         if (AP4_SUCCEEDED(result)) {
             result = m_Output->Write(out, out_size);
             bytes_written = bytes_to_write;
-            m_Size       += bytes_to_write;
+            m_Size += bytes_to_write;
         } else {
             bytes_written = 0;
         }
         delete[] out;
         return result;
     }
+
     virtual AP4_Result Flush() {
         AP4_UI08 trailer[16];
         AP4_Size trailer_size = sizeof(trailer);
         AP4_Result result = m_StreamCipher->ProcessBuffer(NULL, 0, trailer, &trailer_size, true);
         if (AP4_SUCCEEDED(result) && trailer_size) {
             m_Output->Write(trailer, trailer_size);
-            m_Size += 16-(m_Size%16);
+            m_Size += 16 - (m_Size % 16);
         }
-        
+
         return AP4_SUCCESS;
     }
+
     virtual AP4_Result Seek(AP4_Position) { return AP4_ERROR_NOT_SUPPORTED; }
-    virtual AP4_Result Tell(AP4_Position& position) { position = m_Size; return AP4_SUCCESS; }
-    virtual AP4_Result GetSize(AP4_LargeSize& size) { size = m_Size;     return AP4_SUCCESS; }
-    
+
+    virtual AP4_Result Tell(AP4_Position &position) {
+        position = m_Size;
+        return AP4_SUCCESS;
+    }
+
+    virtual AP4_Result GetSize(AP4_LargeSize &size) {
+        size = m_Size;
+        return AP4_SUCCESS;
+    }
+
     void AddReference() {
         ++m_ReferenceCount;
     }
+
     void Release() {
         if (--m_ReferenceCount == 0) {
             delete this;
@@ -351,42 +239,46 @@ public:
     }
 
 private:
-    EncryptingStream(AP4_CbcStreamCipher* stream_cipher, AP4_ByteStream* output):
-        m_ReferenceCount(1),
-        m_StreamCipher(stream_cipher),
-        m_Output(output),
-        m_Size(0) {
+    EncryptingStream(AP4_CbcStreamCipher *stream_cipher, AP4_ByteStream *output) :
+            m_ReferenceCount(1),
+            m_StreamCipher(stream_cipher),
+            m_Output(output),
+            m_Size(0) {
         output->AddReference();
     }
+
     ~EncryptingStream() {
         m_Output->Release();
         delete m_StreamCipher;
     }
-    unsigned int         m_ReferenceCount;
-    AP4_CbcStreamCipher* m_StreamCipher;
-    AP4_ByteStream*      m_Output;
-    AP4_LargeSize        m_Size;
+
+    unsigned int m_ReferenceCount;
+    AP4_CbcStreamCipher *m_StreamCipher;
+    AP4_ByteStream *m_Output;
+    AP4_LargeSize m_Size;
 };
 
 /*----------------------------------------------------------------------
 |   EncryptingStream::Create
 +---------------------------------------------------------------------*/
 AP4_Result
-EncryptingStream::Create(const AP4_UI08* key, const AP4_UI08* iv, AP4_ByteStream* output, EncryptingStream*& stream) {
+EncryptingStream::Create(const AP4_UI08 *key, const AP4_UI08 *iv, AP4_ByteStream *output,
+                         EncryptingStream *&stream) {
     stream = NULL;
-    AP4_BlockCipher* block_cipher = NULL;
-    AP4_Result result = AP4_DefaultBlockCipherFactory::Instance.CreateCipher(AP4_BlockCipher::AES_128,
-                                                                             AP4_BlockCipher::ENCRYPT,
-                                                                             AP4_BlockCipher::CBC,
-                                                                             NULL,
-                                                                             key,
-                                                                             16,
-                                                                             block_cipher);
+    AP4_BlockCipher *block_cipher = NULL;
+    AP4_Result result = AP4_DefaultBlockCipherFactory::Instance.CreateCipher(
+            AP4_BlockCipher::AES_128,
+            AP4_BlockCipher::ENCRYPT,
+            AP4_BlockCipher::CBC,
+            NULL,
+            key,
+            16,
+            block_cipher);
     if (AP4_FAILED(result)) return result;
-    AP4_CbcStreamCipher* stream_cipher = new AP4_CbcStreamCipher(block_cipher);
+    AP4_CbcStreamCipher *stream_cipher = new AP4_CbcStreamCipher(block_cipher);
     stream_cipher->SetIV(iv);
     stream = new EncryptingStream(stream_cipher, output);
-    
+
     return AP4_SUCCESS;
 }
 
@@ -395,42 +287,46 @@ EncryptingStream::Create(const AP4_UI08* key, const AP4_UI08* iv, AP4_ByteStream
 +---------------------------------------------------------------------*/
 class SampleEncrypter {
 public:
-    static AP4_Result Create(const AP4_UI08* key, const AP4_UI08* iv, SampleEncrypter*& encrypter);
+    static AP4_Result Create(const AP4_UI08 *key, const AP4_UI08 *iv, SampleEncrypter *&encrypter);
+
     ~SampleEncrypter() {
         delete m_StreamCipher;
     }
 
-    AP4_Result EncryptAudioSample(AP4_DataBuffer& sample, AP4_SampleDescription* sample_description);
-    AP4_Result EncryptVideoSample(AP4_DataBuffer& sample, AP4_UI08 nalu_length_size);
-    
+    AP4_Result
+    EncryptAudioSample(AP4_DataBuffer &sample, AP4_SampleDescription *sample_description);
+
+    AP4_Result EncryptVideoSample(AP4_DataBuffer &sample, AP4_UI08 nalu_length_size);
+
 private:
-    SampleEncrypter(AP4_CbcStreamCipher* stream_cipher, const AP4_UI08* iv):
-        m_StreamCipher(stream_cipher) {
+    SampleEncrypter(AP4_CbcStreamCipher *stream_cipher, const AP4_UI08 *iv) :
+            m_StreamCipher(stream_cipher) {
         AP4_CopyMemory(m_IV, iv, 16);
     }
 
-    AP4_CbcStreamCipher* m_StreamCipher;
-    AP4_UI08             m_IV[16];
+    AP4_CbcStreamCipher *m_StreamCipher;
+    AP4_UI08 m_IV[16];
 };
 
 /*----------------------------------------------------------------------
 |   SampleEncrypter::Create
 +---------------------------------------------------------------------*/
 AP4_Result
-SampleEncrypter::Create(const AP4_UI08* key, const AP4_UI08* iv, SampleEncrypter*& encrypter) {
+SampleEncrypter::Create(const AP4_UI08 *key, const AP4_UI08 *iv, SampleEncrypter *&encrypter) {
     encrypter = NULL;
-    AP4_BlockCipher* block_cipher = NULL;
-    AP4_Result result = AP4_DefaultBlockCipherFactory::Instance.CreateCipher(AP4_BlockCipher::AES_128,
-                                                                             AP4_BlockCipher::ENCRYPT,
-                                                                             AP4_BlockCipher::CBC,
-                                                                             NULL,
-                                                                             key,
-                                                                             16,
-                                                                             block_cipher);
+    AP4_BlockCipher *block_cipher = NULL;
+    AP4_Result result = AP4_DefaultBlockCipherFactory::Instance.CreateCipher(
+            AP4_BlockCipher::AES_128,
+            AP4_BlockCipher::ENCRYPT,
+            AP4_BlockCipher::CBC,
+            NULL,
+            key,
+            16,
+            block_cipher);
     if (AP4_FAILED(result)) return result;
-    AP4_CbcStreamCipher* stream_cipher = new AP4_CbcStreamCipher(block_cipher);
+    AP4_CbcStreamCipher *stream_cipher = new AP4_CbcStreamCipher(block_cipher);
     encrypter = new SampleEncrypter(stream_cipher, iv);
-    
+
     return AP4_SUCCESS;
 }
 
@@ -461,49 +357,51 @@ SampleEncrypter::Create(const AP4_UI08* key, const AP4_UI08* iv, SampleEncrypter
 |
 +---------------------------------------------------------------------*/
 AP4_Result
-SampleEncrypter::EncryptAudioSample(AP4_DataBuffer& sample, AP4_SampleDescription* sample_description)
-{
+SampleEncrypter::EncryptAudioSample(AP4_DataBuffer &sample,
+                                    AP4_SampleDescription *sample_description) {
     if (sample.GetDataSize() <= 16) {
         return AP4_SUCCESS;
     }
-    
+
     // deal with E-AC3 syncframes
     if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_EC_3) {
         // syncword    : 16
         // strmtyp     : 2
         // substreamid : 3
         // frmsiz      : 11
-        AP4_UI08*    data      = sample.UseData();
+        AP4_UI08 *data = sample.UseData();
         unsigned int data_size = sample.GetDataSize();
         while (data_size > 4) {
-            unsigned int syncword = (data[0]<<8) | data[1];
+            unsigned int syncword = (data[0] << 8) | data[1];
             if (syncword != 0x0b77) {
                 return AP4_ERROR_INVALID_FORMAT; // unexpected!
             }
-            unsigned int frmsiz = 1+(((data[2]<<8)|(data[3]))&0x7FF);
-            unsigned int frame_size = 2*frmsiz;
+            unsigned int frmsiz = 1 + (((data[2] << 8) | (data[3])) & 0x7FF);
+            unsigned int frame_size = 2 * frmsiz;
             if (data_size < frame_size) {
                 return AP4_ERROR_INVALID_FORMAT; // unexpected!
             }
 
             // encrypt the syncframe
             if (frame_size > 16) {
-                unsigned int encrypted_block_count = (frame_size-16)/16;
-                AP4_Size encrypted_size = encrypted_block_count*16;
+                unsigned int encrypted_block_count = (frame_size - 16) / 16;
+                AP4_Size encrypted_size = encrypted_block_count * 16;
                 m_StreamCipher->SetIV(m_IV);
-                m_StreamCipher->ProcessBuffer(data+16, encrypted_size, data+16, &encrypted_size);
+                m_StreamCipher->ProcessBuffer(data + 16, encrypted_size, data + 16,
+                                              &encrypted_size);
             }
-            
-            data      += frame_size;
+
+            data += frame_size;
             data_size -= frame_size;
         }
     } else {
-        unsigned int encrypted_block_count = (sample.GetDataSize()-16)/16;
-        AP4_Size encrypted_size = encrypted_block_count*16;
+        unsigned int encrypted_block_count = (sample.GetDataSize() - 16) / 16;
+        AP4_Size encrypted_size = encrypted_block_count * 16;
         m_StreamCipher->SetIV(m_IV);
-        m_StreamCipher->ProcessBuffer(sample.UseData()+16, encrypted_size, sample.UseData()+16, &encrypted_size);
+        m_StreamCipher->ProcessBuffer(sample.UseData() + 16, encrypted_size, sample.UseData() + 16,
+                                      &encrypted_size);
     }
-    
+
     return AP4_SUCCESS;
 }
 
@@ -519,67 +417,66 @@ SampleEncrypter::EncryptAudioSample(AP4_DataBuffer& sample, AP4_SampleDescriptio
 |   unencrypted_trailer               // 1-16 bytes
 +---------------------------------------------------------------------*/
 AP4_Result
-SampleEncrypter::EncryptVideoSample(AP4_DataBuffer& sample, AP4_UI08 nalu_length_size)
-{
+SampleEncrypter::EncryptVideoSample(AP4_DataBuffer &sample, AP4_UI08 nalu_length_size) {
     AP4_DataBuffer encrypted;
-    
-    AP4_UI08* nalu = sample.UseData();
-    AP4_Size  bytes_remaining = sample.GetDataSize();
+
+    AP4_UI08 *nalu = sample.UseData();
+    AP4_Size bytes_remaining = sample.GetDataSize();
     while (bytes_remaining > nalu_length_size) {
         AP4_Size nalu_length = 0;
         switch (nalu_length_size) {
             case 1:
                 nalu_length = nalu[0];
                 break;
-                
+
             case 2:
                 nalu_length = AP4_BytesToUInt16BE(nalu);
                 break;
-    
+
             case 4:
                 nalu_length = AP4_BytesToUInt32BE(nalu);
                 break;
-                
+
             default:
                 break;
         }
-        
-        if (bytes_remaining < nalu_length_size+nalu_length) {
+
+        if (bytes_remaining < nalu_length_size + nalu_length) {
             break;
         }
-        
+
         AP4_UI08 nalu_type = nalu[nalu_length_size] & 0x1F;
         if (nalu_length > 48 && (nalu_type == 1 || nalu_type == 5)) {
-            AP4_Size encrypted_size = 16*((nalu_length-32)/16);
-            if ((nalu_length%16) == 0) {
+            AP4_Size encrypted_size = 16 * ((nalu_length - 32) / 16);
+            if ((nalu_length % 16) == 0) {
                 encrypted_size -= 16;
             }
             m_StreamCipher->SetIV(m_IV);
-            for (unsigned int i=0; i<encrypted_size; i += 10*16) {
+            for (unsigned int i = 0; i < encrypted_size; i += 10 * 16) {
                 AP4_Size one_block_size = 16;
-                m_StreamCipher->ProcessBuffer(nalu+nalu_length_size+32+i, one_block_size,
-                                              nalu+nalu_length_size+32+i, &one_block_size);
+                m_StreamCipher->ProcessBuffer(nalu + nalu_length_size + 32 + i, one_block_size,
+                                              nalu + nalu_length_size + 32 + i, &one_block_size);
             }
 
             // perform startcode emulation prevention
             AP4_DataBuffer escaped_nalu;
-            PreventStartCodeEmulation(nalu+nalu_length_size, nalu_length, escaped_nalu);
-            
+            PreventStartCodeEmulation(nalu + nalu_length_size, nalu_length, escaped_nalu);
+
             // the size may have changed
             // TODO: this could overflow if nalu_length_size is too small
             switch (nalu_length_size) {
                 case 1:
-                    nalu[0] = (AP4_UI08)(escaped_nalu.GetDataSize()&0xFF);
+                    nalu[0] = (AP4_UI08) (escaped_nalu.GetDataSize() & 0xFF);
                     break;
-                    
+
                 case 2:
                     AP4_BytesFromUInt16BE(nalu, escaped_nalu.GetDataSize());
                     break;
-        
+
                 case 4:
                     AP4_BytesFromUInt32BE(nalu, escaped_nalu.GetDataSize());
                     break;
-                    
+
                 default:
                     break;
             }
@@ -588,15 +485,15 @@ SampleEncrypter::EncryptVideoSample(AP4_DataBuffer& sample, AP4_UI08 nalu_length
             encrypted.AppendData(escaped_nalu.GetData(), escaped_nalu.GetDataSize());
         } else {
             encrypted.AppendData(nalu, nalu_length_size);
-            encrypted.AppendData(nalu+nalu_length_size, nalu_length);
+            encrypted.AppendData(nalu + nalu_length_size, nalu_length);
         }
-        
-        nalu            += nalu_length_size+nalu_length;
-        bytes_remaining -= nalu_length_size+nalu_length;
+
+        nalu += nalu_length_size + nalu_length;
+        bytes_remaining -= nalu_length_size + nalu_length;
     }
-    
+
     sample.SetData(encrypted.GetData(), encrypted.GetDataSize());
-    
+
     return AP4_SUCCESS;
 }
 
@@ -604,23 +501,36 @@ SampleEncrypter::EncryptVideoSample(AP4_DataBuffer& sample, AP4_UI08 nalu_length
 |   GetSamplingFrequencyIndex
 +---------------------------------------------------------------------*/
 static unsigned int
-GetSamplingFrequencyIndex(unsigned int sampling_frequency)
-{
+GetSamplingFrequencyIndex(unsigned int sampling_frequency) {
     switch (sampling_frequency) {
-        case 96000: return 0;
-        case 88200: return 1;
-        case 64000: return 2;
-        case 48000: return 3;
-        case 44100: return 4;
-        case 32000: return 5;
-        case 24000: return 6;
-        case 22050: return 7;
-        case 16000: return 8;
-        case 12000: return 9;
-        case 11025: return 10;
-        case 8000:  return 11;
-        case 7350:  return 12;
-        default:    return 0;
+        case 96000:
+            return 0;
+        case 88200:
+            return 1;
+        case 64000:
+            return 2;
+        case 48000:
+            return 3;
+        case 44100:
+            return 4;
+        case 32000:
+            return 5;
+        case 24000:
+            return 6;
+        case 22050:
+            return 7;
+        case 16000:
+            return 8;
+        case 12000:
+            return 9;
+        case 11025:
+            return 10;
+        case 8000:
+            return 11;
+        case 7350:
+            return 12;
+        default:
+            return 0;
     }
 }
 
@@ -628,24 +538,23 @@ GetSamplingFrequencyIndex(unsigned int sampling_frequency)
 |   WriteAdtsHeader
 +---------------------------------------------------------------------*/
 static AP4_Result
-WriteAdtsHeader(AP4_ByteStream& output,
-                unsigned int    frame_size,
-                unsigned int    sampling_frequency_index,
-                unsigned int    channel_configuration)
-{
-	unsigned char bits[7];
+WriteAdtsHeader(AP4_ByteStream &output,
+                unsigned int frame_size,
+                unsigned int sampling_frequency_index,
+                unsigned int channel_configuration) {
+    unsigned char bits[7];
 
-	bits[0] = 0xFF;
-	bits[1] = 0xF1; // 0xF9 (MPEG2)
+    bits[0] = 0xFF;
+    bits[1] = 0xF1; // 0xF9 (MPEG2)
     bits[2] = 0x40 | (sampling_frequency_index << 2) | (channel_configuration >> 2);
-    bits[3] = ((channel_configuration&0x3)<<6) | ((frame_size+7) >> 11);
-    bits[4] = ((frame_size+7) >> 3)&0xFF;
-	bits[5] = (((frame_size+7) << 5)&0xFF) | 0x1F;
-	bits[6] = 0xFC;
+    bits[3] = ((channel_configuration & 0x3) << 6) | ((frame_size + 7) >> 11);
+    bits[4] = ((frame_size + 7) >> 3) & 0xFF;
+    bits[5] = (((frame_size + 7) << 5) & 0xFF) | 0x1F;
+    bits[6] = 0xFC;
 
-	return output.Write(bits, 7);
+    return output.Write(bits, 7);
 
-	/*
+    /*
         0:  syncword 12 always: '111111111111' 
         12: ID 1 0: MPEG-4, 1: MPEG-2 
         13: layer 2 always: '00' 
@@ -673,18 +582,17 @@ WriteAdtsHeader(AP4_ByteStream& output,
 |   WriteAc4Header
 +---------------------------------------------------------------------*/
 static AP4_Result
-WriteAc4Header(AP4_ByteStream& output,
-                unsigned int    frame_size)
-{
+WriteAc4Header(AP4_ByteStream &output,
+               unsigned int frame_size) {
     unsigned char bits[7];
 
     bits[0] = 0xac;
     bits[1] = 0x40;
     bits[2] = 0xff;
     bits[3] = 0xff;
-    bits[4] = (frame_size>>16)&0xFF;
-    bits[5] = (frame_size>>8 )&0xFF;
-    bits[6] = (frame_size    )&0xFF;
+    bits[4] = (frame_size >> 16) & 0xFF;
+    bits[5] = (frame_size >> 8) & 0xFF;
+    bits[6] = (frame_size) & 0xFF;
 
     return output.Write(bits, 7);
 }
@@ -693,22 +601,22 @@ WriteAc4Header(AP4_ByteStream& output,
 |   MakeAudioSetupData
 +---------------------------------------------------------------------*/
 static AP4_Result
-MakeAudioSetupData(AP4_DataBuffer&        audio_setup_data,
-                   AP4_SampleDescription* sample_description,
-                   AP4_DataBuffer&        sample_data /* needed for encrypted AC3 */)
-{
-    AP4_UI08       audio_type[4];
+MakeAudioSetupData(AP4_DataBuffer &audio_setup_data,
+                   AP4_SampleDescription *sample_description,
+                   AP4_DataBuffer &sample_data /* needed for encrypted AC3 */) {
+    AP4_UI08 audio_type[4];
     AP4_DataBuffer setup_data;
-    
+
     if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_MP4A) {
-        AP4_MpegAudioSampleDescription* mpeg_audio_desc = AP4_DYNAMIC_CAST(AP4_MpegAudioSampleDescription, sample_description);
+        AP4_MpegAudioSampleDescription *mpeg_audio_desc = AP4_DYNAMIC_CAST(
+                AP4_MpegAudioSampleDescription, sample_description);
         if (mpeg_audio_desc == NULL ||
-            !(mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG4_AUDIO          ||
-              mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG2_AAC_AUDIO_LC   ||
+            !(mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG4_AUDIO ||
+              mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG2_AAC_AUDIO_LC ||
               mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG2_AAC_AUDIO_MAIN)) {
             return AP4_ERROR_NOT_SUPPORTED;
         }
-        const AP4_DataBuffer& dsi = mpeg_audio_desc->GetDecoderInfo();
+        const AP4_DataBuffer &dsi = mpeg_audio_desc->GetDecoderInfo();
         setup_data.SetData(dsi.GetData(), dsi.GetDataSize());
 
         AP4_Mp4AudioDecoderConfig dec_config;
@@ -751,7 +659,9 @@ MakeAudioSetupData(AP4_DataBuffer&        audio_setup_data,
         audio_type[2] = 'c';
         audio_type[3] = '3';
 
-        AP4_Dec3Atom* dec3 = AP4_DYNAMIC_CAST(AP4_Dec3Atom, sample_description->GetDetails().GetChild(AP4_ATOM_TYPE_DEC3));
+        AP4_Dec3Atom *dec3 = AP4_DYNAMIC_CAST(AP4_Dec3Atom,
+                                              sample_description->GetDetails().GetChild(
+                                                      AP4_ATOM_TYPE_DEC3));
         if (dec3 == NULL) {
             fprintf(stderr, "ERROR: failed to find 'dec3' atom in sample description\n");
             return 1;
@@ -761,8 +671,8 @@ MakeAudioSetupData(AP4_DataBuffer&        audio_setup_data,
         return AP4_SUCCESS;
     }
 
-    audio_setup_data.SetDataSize(8+setup_data.GetDataSize());
-    AP4_UI08* payload = audio_setup_data.UseData();
+    audio_setup_data.SetDataSize(8 + setup_data.GetDataSize());
+    AP4_UI08 *payload = audio_setup_data.UseData();
     payload[0] = audio_type[0];
     payload[1] = audio_type[1];
     payload[2] = audio_type[2];
@@ -782,13 +692,12 @@ MakeAudioSetupData(AP4_DataBuffer&        audio_setup_data,
 |   MakeSampleAesAudioDescriptor
 +---------------------------------------------------------------------*/
 static AP4_Result
-MakeSampleAesAudioDescriptor(AP4_DataBuffer&        descriptor,
-                             AP4_SampleDescription* sample_description,
-                             AP4_DataBuffer&        sample_data /* needed for encrypted AC3 */)
-{
+MakeSampleAesAudioDescriptor(AP4_DataBuffer &descriptor,
+                             AP4_SampleDescription *sample_description,
+                             AP4_DataBuffer &sample_data /* needed for encrypted AC3 */) {
     // descriptor
     descriptor.SetDataSize(6);
-    AP4_UI08* payload = descriptor.UseData();
+    AP4_UI08 *payload = descriptor.UseData();
     payload[0] = AP4_MPEG2_PRIVATE_DATA_INDICATOR_DESCRIPTOR_TAG;
     payload[1] = 4;
     if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_MP4A) {
@@ -815,17 +724,17 @@ MakeSampleAesAudioDescriptor(AP4_DataBuffer&        descriptor,
         fprintf(stderr, "ERROR: failed to make audio setup data (%d)\n", result);
         return result;
     }
-    
-    descriptor.SetDataSize(descriptor.GetDataSize()+6+audio_setup_data.GetDataSize());
-    payload = descriptor.UseData()+6;
+
+    descriptor.SetDataSize(descriptor.GetDataSize() + 6 + audio_setup_data.GetDataSize());
+    payload = descriptor.UseData() + 6;
     payload[0] = AP4_MPEG2_REGISTRATION_DESCRIPTOR_TAG;
-    payload[1] = 4+audio_setup_data.GetDataSize();
+    payload[1] = 4 + audio_setup_data.GetDataSize();
     payload[2] = 'a';
     payload[3] = 'p';
     payload[4] = 'a';
     payload[5] = 'd';
     AP4_CopyMemory(&payload[6], audio_setup_data.GetData(), audio_setup_data.GetDataSize());
-    
+
     return AP4_SUCCESS;
 }
 
@@ -833,10 +742,9 @@ MakeSampleAesAudioDescriptor(AP4_DataBuffer&        descriptor,
 |   MakeSampleAesVideoDescriptor
 +---------------------------------------------------------------------*/
 static AP4_Result
-MakeSampleAesVideoDescriptor(AP4_DataBuffer& descriptor)
-{
+MakeSampleAesVideoDescriptor(AP4_DataBuffer &descriptor) {
     descriptor.SetDataSize(6);
-    AP4_UI08* payload = descriptor.UseData();
+    AP4_UI08 *payload = descriptor.UseData();
     payload[0] = AP4_MPEG2_PRIVATE_DATA_INDICATOR_DESCRIPTOR_TAG;
     payload[1] = 4;
     payload[2] = 'z';
@@ -852,35 +760,37 @@ MakeSampleAesVideoDescriptor(AP4_DataBuffer& descriptor)
 +---------------------------------------------------------------------*/
 class PackedAudioWriter {
 public:
-    AP4_Result WriteHeader(double          timestamp,
-                           const char*     private_extension_name,
-                           const AP4_UI08* private_extension_data,
-                           unsigned int    private_extension_data_size,
-                           AP4_ByteStream& output);
-    AP4_Result WriteSample(AP4_Sample&            sample,
-                           AP4_DataBuffer&        sample_data,
-                           AP4_SampleDescription* sample_description,
-                           AP4_ByteStream&        output);
-    
+    AP4_Result WriteHeader(double timestamp,
+                           const char *private_extension_name,
+                           const AP4_UI08 *private_extension_data,
+                           unsigned int private_extension_data_size,
+                           AP4_ByteStream &output);
+
+    AP4_Result WriteSample(AP4_Sample &sample,
+                           AP4_DataBuffer &sample_data,
+                           AP4_SampleDescription *sample_description,
+                           AP4_ByteStream &output);
+
 };
 
 /*----------------------------------------------------------------------
 |   PackedAudioWriter::WriteHeader
 +---------------------------------------------------------------------*/
 AP4_Result
-PackedAudioWriter::WriteHeader(double          timestamp,
-                               const char*     private_extension_name,
-                               const AP4_UI08* private_extension_data,
-                               unsigned int    private_extension_data_size,
-                               AP4_ByteStream& output)
-{
-    unsigned int header_size = 10+10+45+8;
-    unsigned int private_extension_name_size = private_extension_name?(unsigned int)AP4_StringLength(private_extension_name)+1:0;
+PackedAudioWriter::WriteHeader(double timestamp,
+                               const char *private_extension_name,
+                               const AP4_UI08 *private_extension_data,
+                               unsigned int private_extension_data_size,
+                               AP4_ByteStream &output) {
+    unsigned int header_size = 10 + 10 + 45 + 8;
+    unsigned int private_extension_name_size = private_extension_name ?
+                                               (unsigned int) AP4_StringLength(
+                                                       private_extension_name) + 1 : 0;
     if (private_extension_name) {
-        header_size += 10+private_extension_name_size+private_extension_data_size;;
+        header_size += 10 + private_extension_name_size + private_extension_data_size;;
     }
-    AP4_UI08* header = new AP4_UI08[header_size];
-    
+    AP4_UI08 *header = new AP4_UI08[header_size];
+
     /* ID3 Tag Header
      ID3v2/file identifier      "ID3"
      ID3v2 version              $04 00
@@ -895,9 +805,9 @@ PackedAudioWriter::WriteHeader(double          timestamp,
     header[5] = 0;
     header[6] = 0;
     header[7] = 0;
-    header[8] = ((header_size-10)>>7) & 0x7F;
-    header[9] =  (header_size-10)     & 0x7F;
-    
+    header[8] = ((header_size - 10) >> 7) & 0x7F;
+    header[9] = (header_size - 10) & 0x7F;
+
     /* PRIV frame
      Frame ID   $xx xx xx xx  (four characters)
      Size       $xx xx xx xx
@@ -913,34 +823,35 @@ PackedAudioWriter::WriteHeader(double          timestamp,
     header[14] = 0;
     header[15] = 0;
     header[16] = 0;
-    header[17] = 45+8;
+    header[17] = 45 + 8;
     header[18] = 0;
     header[19] = 0;
     AP4_CopyMemory(&header[20], "com.apple.streaming.transportStreamTimestamp", 45);
-    AP4_UI64 mpeg_ts = (AP4_UI64)(timestamp*90000.0);
-    AP4_BytesFromUInt64BE(&header[10+10+45], mpeg_ts);
+    AP4_UI64 mpeg_ts = (AP4_UI64) (timestamp * 90000.0);
+    AP4_BytesFromUInt64BE(&header[10 + 10 + 45], mpeg_ts);
 
     // add the extra private extension if needed
     if (private_extension_name) {
-        AP4_UI08* ext = &header[10+10+45+8];
+        AP4_UI08 *ext = &header[10 + 10 + 45 + 8];
         ext[0] = 'P';
         ext[1] = 'R';
         ext[2] = 'I';
         ext[3] = 'V';
         ext[4] = 0;
         ext[5] = 0;
-        ext[6] = ((private_extension_name_size+private_extension_data_size)>>7) & 0x7F;
-        ext[7] =  (private_extension_name_size+private_extension_data_size)     & 0x7F;
+        ext[6] = ((private_extension_name_size + private_extension_data_size) >> 7) & 0x7F;
+        ext[7] = (private_extension_name_size + private_extension_data_size) & 0x7F;
         ext[8] = 0;
         ext[9] = 0;
         AP4_CopyMemory(&ext[10], private_extension_name, private_extension_name_size);
-        AP4_CopyMemory(&ext[10+private_extension_name_size], private_extension_data, private_extension_data_size);
+        AP4_CopyMemory(&ext[10 + private_extension_name_size], private_extension_data,
+                       private_extension_data_size);
     }
-    
+
     // write the header out
     AP4_Result result = output.Write(header, header_size);
     delete[] header;
-    
+
     return result;
 }
 
@@ -948,29 +859,30 @@ PackedAudioWriter::WriteHeader(double          timestamp,
 |   PackedAudioWriter::WriteSample
 +---------------------------------------------------------------------*/
 AP4_Result
-PackedAudioWriter::WriteSample(AP4_Sample&            sample,
-                               AP4_DataBuffer&        sample_data,
-                               AP4_SampleDescription* sample_description,
-                               AP4_ByteStream&        output)
-{
-    AP4_AudioSampleDescription* audio_desc = AP4_DYNAMIC_CAST(AP4_AudioSampleDescription, sample_description);
+PackedAudioWriter::WriteSample(AP4_Sample &sample,
+                               AP4_DataBuffer &sample_data,
+                               AP4_SampleDescription *sample_description,
+                               AP4_ByteStream &output) {
+    AP4_AudioSampleDescription *audio_desc = AP4_DYNAMIC_CAST(AP4_AudioSampleDescription,
+                                                              sample_description);
     if (audio_desc == NULL) {
         return AP4_ERROR_INVALID_FORMAT;
     }
     if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_MP4A) {
-        AP4_MpegAudioSampleDescription* mpeg_audio_desc = AP4_DYNAMIC_CAST(AP4_MpegAudioSampleDescription, sample_description);
+        AP4_MpegAudioSampleDescription *mpeg_audio_desc = AP4_DYNAMIC_CAST(
+                AP4_MpegAudioSampleDescription, sample_description);
 
         if (mpeg_audio_desc == NULL) return AP4_ERROR_NOT_SUPPORTED;
-        if (mpeg_audio_desc->GetMpeg4AudioObjectType() != AP4_MPEG4_AUDIO_OBJECT_TYPE_AAC_LC   &&
+        if (mpeg_audio_desc->GetMpeg4AudioObjectType() != AP4_MPEG4_AUDIO_OBJECT_TYPE_AAC_LC &&
             mpeg_audio_desc->GetMpeg4AudioObjectType() != AP4_MPEG4_AUDIO_OBJECT_TYPE_AAC_MAIN &&
-            mpeg_audio_desc->GetMpeg4AudioObjectType() != AP4_MPEG4_AUDIO_OBJECT_TYPE_SBR      &&
+            mpeg_audio_desc->GetMpeg4AudioObjectType() != AP4_MPEG4_AUDIO_OBJECT_TYPE_SBR &&
             mpeg_audio_desc->GetMpeg4AudioObjectType() != AP4_MPEG4_AUDIO_OBJECT_TYPE_PS) {
             return AP4_ERROR_NOT_SUPPORTED;
         }
 
-        unsigned int sample_rate   = mpeg_audio_desc->GetSampleRate();
+        unsigned int sample_rate = mpeg_audio_desc->GetSampleRate();
         unsigned int channel_count = mpeg_audio_desc->GetChannelCount();
-        const AP4_DataBuffer& dsi  = mpeg_audio_desc->GetDecoderInfo();
+        const AP4_DataBuffer &dsi = mpeg_audio_desc->GetDecoderInfo();
         if (dsi.GetDataSize()) {
             AP4_Mp4AudioDecoderConfig dec_config;
             AP4_Result result = dec_config.Parse(dsi.GetData(), dsi.GetDataSize());
@@ -980,7 +892,7 @@ PackedAudioWriter::WriteSample(AP4_Sample&            sample,
             }
         }
         unsigned int sampling_frequency_index = GetSamplingFrequencyIndex(sample_rate);
-        unsigned int channel_configuration    = channel_count;
+        unsigned int channel_configuration = channel_count;
 
         WriteAdtsHeader(output, sample.GetSize(), sampling_frequency_index, channel_configuration);
     } else if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_AC_4) {
@@ -993,14 +905,13 @@ PackedAudioWriter::WriteSample(AP4_Sample&            sample,
 |   ReadSample
 +---------------------------------------------------------------------*/
 static AP4_Result
-ReadSample(SampleReader&   reader, 
-           AP4_Track&      track,
-           AP4_Sample&     sample,
-           AP4_DataBuffer& sample_data, 
-           double&         ts,
-           double&         duration,
-           bool&           eos)
-{
+ReadSample(SampleReader &reader,
+           AP4_Track &track,
+           AP4_Sample &sample,
+           AP4_DataBuffer &sample_data,
+           double &ts,
+           double &duration,
+           bool &eos) {
     AP4_Result result = reader.ReadSample(sample, sample_data);
     if (AP4_FAILED(result)) {
         if (result == AP4_ERROR_EOS) {
@@ -1012,9 +923,9 @@ ReadSample(SampleReader&   reader,
             return result;
         }
     }
-    ts = (double)sample.GetDts()/(double)track.GetMediaTimeScale();
-    duration = sample.GetDuration()/(double)track.GetMediaTimeScale();
-    
+    ts = (double) sample.GetDts() / (double) track.GetMediaTimeScale();
+    duration = sample.GetDuration() / (double) track.GetMediaTimeScale();
+
     return AP4_SUCCESS;
 }
 
@@ -1022,62 +933,69 @@ ReadSample(SampleReader&   reader,
 |   WriteSamples
 +---------------------------------------------------------------------*/
 static AP4_Result
-WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
-             PackedAudioWriter*               packed_writer,
-             AP4_Track*                       audio_track,
-             SampleReader*                    audio_reader, 
-             AP4_Mpeg2TsWriter::SampleStream* audio_stream,
-             AP4_Track*                       video_track,
-             SampleReader*                    video_reader, 
-             AP4_Mpeg2TsWriter::SampleStream* video_stream,
-             unsigned int                     segment_duration_threshold,
-             AP4_UI08                         nalu_length_size)
-{
-    AP4_Sample              audio_sample;
-    AP4_DataBuffer          audio_sample_data;
-    unsigned int            audio_sample_count = 0;
-    double                  audio_ts = 0.0;
-    double                  audio_frame_duration = 0.0;
-    bool                    audio_eos = false;
-    AP4_Sample              video_sample;
-    AP4_DataBuffer          video_sample_data;
-    unsigned int            video_sample_count = 0;
-    double                  video_ts = 0.0;
-    double                  video_frame_duration = 0.0;
-    bool                    video_eos = false;
-    double                  last_ts = 0.0;
-    unsigned int            segment_number = 0;
-    AP4_ByteStream*         segment_output = NULL;
-    double                  segment_duration = 0.0;
-    AP4_Array<double>       segment_durations;
-    AP4_Array<AP4_UI32>     segment_sizes;
-    AP4_Position            segment_position = 0;
+WriteSamples(AP4_Mpeg2TsWriter *ts_writer,
+             PackedAudioWriter *packed_writer,
+             AP4_Track *audio_track,
+             SampleReader *audio_reader,
+             AP4_Mpeg2TsWriter::SampleStream *audio_stream,
+             AP4_Track *video_track,
+             SampleReader *video_reader,
+             AP4_Mpeg2TsWriter::SampleStream *video_stream,
+             unsigned int segment_duration_threshold,
+             AP4_UI08 nalu_length_size) {
+    AP4_Sample audio_sample;
+    AP4_DataBuffer audio_sample_data;
+    unsigned int audio_sample_count = 0;
+    double audio_ts = 0.0;
+    double audio_frame_duration = 0.0;
+    bool audio_eos = false;
+    AP4_Sample video_sample;
+    AP4_DataBuffer video_sample_data;
+    unsigned int video_sample_count = 0;
+    double video_ts = 0.0;
+    double video_frame_duration = 0.0;
+    bool video_eos = false;
+    double last_ts = 0.0;
+    unsigned int segment_number = 0;
+    AP4_ByteStream *segment_output = NULL;
+    double segment_duration = 0.0;
+    AP4_Array<double> segment_durations;
+    AP4_Array<AP4_UI32> segment_sizes;
+    AP4_Position segment_position = 0;
     AP4_Array<AP4_Position> segment_positions;
     AP4_Array<AP4_Position> iframe_positions;
-    AP4_Array<AP4_UI32>     iframe_sizes;
-    AP4_Array<double>       iframe_times;
-    AP4_Array<double>       iframe_durations;
-    AP4_Array<AP4_UI32>     iframe_segment_indexes;
-    bool                    new_segment = true;
-    AP4_ByteStream*         raw_output = NULL;
-    AP4_ByteStream*         playlist = NULL;
-    char                    string_buffer[4096];
-    SampleEncrypter*        sample_encrypter = NULL;
-    AP4_Result              result = AP4_SUCCESS;
-    
+    AP4_Array<AP4_UI32> iframe_sizes;
+    AP4_Array<double> iframe_times;
+    AP4_Array<double> iframe_durations;
+    AP4_Array<AP4_UI32> iframe_segment_indexes;
+    bool new_segment = true;
+    AP4_ByteStream *raw_output = NULL;
+    AP4_ByteStream *playlist = NULL;
+    char string_buffer[4096];
+    SampleEncrypter *sample_encrypter = NULL;
+    AP4_Result result = AP4_SUCCESS;
+
+    char msg[256];
+
     // prime the samples
     if (audio_reader) {
-        result = ReadSample(*audio_reader, *audio_track, audio_sample, audio_sample_data, audio_ts, audio_frame_duration, audio_eos);
-        if (AP4_FAILED(result)) return result;
+        result = ReadSample(*audio_reader, *audio_track, audio_sample, audio_sample_data, audio_ts,
+                            audio_frame_duration, audio_eos);
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "11111");
+        if (AP4_FAILED(result)) { return result; }
     }
     if (video_reader) {
-        result = ReadSample(*video_reader, *video_track, video_sample, video_sample_data, video_ts, video_frame_duration, video_eos);
-        if (AP4_FAILED(result)) return result;
+        result = ReadSample(*video_reader, *video_track, video_sample, video_sample_data, video_ts,
+                            video_frame_duration, video_eos);
+        if (AP4_FAILED(result)) {
+            __android_log_print(ANDROID_LOG_DEBUG, "TAG", "2222");
+            return result;
+        }
     }
-    
+
     for (;;) {
         bool sync_sample = false;
-        AP4_Track* chosen_track= NULL;
+        AP4_Track *chosen_track = NULL;
         if (audio_track && !audio_eos) {
             chosen_track = audio_track;
             if (video_track == NULL) {
@@ -1102,7 +1020,7 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
                 sync_sample = true;
             }
         }
-        
+
         // check if we need to start a new segment
         if (HlsOptions.segment_duration && (sync_sample || chosen_track == NULL)) {
             if (video_track) {
@@ -1110,7 +1028,8 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
             } else {
                 segment_duration = audio_ts - last_ts;
             }
-            if ((segment_duration >= (double)HlsOptions.segment_duration - (double)segment_duration_threshold / 1000.0) ||
+            if ((segment_duration >= (double) HlsOptions.segment_duration -
+                                     (double) segment_duration_threshold / 1000.0) ||
                 chosen_track == NULL) {
                 if (video_track) {
                     last_ts = video_ts;
@@ -1120,33 +1039,33 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
                 if (segment_output) {
                     // flush the output stream
                     segment_output->Flush();
-                    
+
                     // compute the segment size (including padding)
                     AP4_Position segment_end = 0;
                     segment_output->Tell(segment_end);
                     AP4_UI32 segment_size = 0;
                     if (HlsOptions.encryption_mode == ENCRYPTION_MODE_AES_128) {
-                        segment_size = (AP4_UI32)segment_end;
+                        segment_size = (AP4_UI32) segment_end;
                     } else if (segment_end > segment_position) {
-                        segment_size = (AP4_UI32)(segment_end-segment_position);
+                        segment_size = (AP4_UI32) (segment_end - segment_position);
                     }
-                    
+
                     // update counters
                     segment_sizes.Append(segment_size);
                     segment_positions.Append(segment_position);
                     segment_durations.Append(segment_duration);
-            
+
                     if (segment_duration != 0.0) {
-                        double segment_bitrate = 8.0*(double)segment_size/segment_duration;
+                        double segment_bitrate = 8.0 * (double) segment_size / segment_duration;
                         if (segment_bitrate > Stats.max_segment_bitrate) {
                             Stats.max_segment_bitrate = segment_bitrate;
                         }
                     }
                     if (HlsOptions.verbose) {
                         printf("Segment %d, duration=%.2f, %d audio samples, %d video samples, %d bytes @%lld\n",
-                               segment_number, 
+                               segment_number,
                                segment_duration,
-                               audio_sample_count, 
+                               audio_sample_count,
                                video_sample_count,
                                segment_size,
                                segment_position);
@@ -1165,10 +1084,10 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
 
         // check if we're done
         if (chosen_track == NULL) break;
-        
+
         if (new_segment) {
             new_segment = false;
-            
+
             // compute the new segment position
             segment_position = 0;
             if (HlsOptions.output_single_file) {
@@ -1176,12 +1095,15 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
                     raw_output->Tell(segment_position);
                 }
             }
-            
+
             // manage the new segment stream
             if (segment_output == NULL) {
                 segment_output = OpenOutput(HlsOptions.segment_filename_template, segment_number);
                 raw_output = segment_output;
-                if (segment_output == NULL) return AP4_ERROR_CANNOT_OPEN_FILE;
+                if (segment_output == NULL) {
+                    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "nnnnnnnnnnnnnnnnnnnn");
+                    return AP4_ERROR_CANNOT_OPEN_FILE;
+                }
             }
             if (HlsOptions.encryption_mode != ENCRYPTION_MODE_NONE) {
                 if (HlsOptions.encryption_iv_mode == ENCRYPTION_IV_MODE_SEQUENCE) {
@@ -1190,8 +1112,10 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
                 }
             }
             if (HlsOptions.encryption_mode == ENCRYPTION_MODE_AES_128) {
-                EncryptingStream* encrypting_stream = NULL;
-                result = EncryptingStream::Create(HlsOptions.encryption_key, HlsOptions.encryption_iv, raw_output, encrypting_stream);
+                EncryptingStream *encrypting_stream = NULL;
+                result = EncryptingStream::Create(HlsOptions.encryption_key,
+                                                  HlsOptions.encryption_iv,
+                                                  raw_output, encrypting_stream);
                 if (AP4_FAILED(result)) {
                     fprintf(stderr, "ERROR: failed to create encrypting stream (%d)\n", result);
                     return result;
@@ -1201,53 +1125,67 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
             } else if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES) {
                 delete sample_encrypter;
                 sample_encrypter = NULL;
-                result = SampleEncrypter::Create(HlsOptions.encryption_key, HlsOptions.encryption_iv, sample_encrypter);
+                result = SampleEncrypter::Create(HlsOptions.encryption_key,
+                                                 HlsOptions.encryption_iv,
+                                                 sample_encrypter);
                 if (AP4_FAILED(result)) {
-                    fprintf(stderr, "ERROR: failed to create sample encrypter (%d)\n", result);
+                    sprintf(msg, "ERROR: failed to create sample encrypter (%d)\n", result);
+                    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "3333:%s", msg);
                     return result;
                 }
             }
-            
+
             // write the PAT and PMT
             if (ts_writer) {
                 // update the descriptors if needed
                 if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES) {
                     AP4_DataBuffer descriptor;
                     if (audio_track) {
-                        result = MakeSampleAesAudioDescriptor(descriptor, audio_track->GetSampleDescription(0), audio_sample_data);
+                        result = MakeSampleAesAudioDescriptor(descriptor,
+                                                              audio_track->GetSampleDescription(0),
+                                                              audio_sample_data);
                         if (AP4_SUCCEEDED(result) && descriptor.GetDataSize()) {
-                            audio_stream->SetDescriptor(descriptor.GetData(), descriptor.GetDataSize());
+                            audio_stream->SetDescriptor(descriptor.GetData(),
+                                                        descriptor.GetDataSize());
                         } else {
-                            fprintf(stderr, "ERROR: failed to create sample-aes descriptor (%d)\n", result);
+                            sprintf(msg, "ERROR: failed to create sample-aes descriptor (%d)\n",
+                                    result);
+                            __android_log_print(ANDROID_LOG_DEBUG, "TAG", "4444:%s", msg);
                             return result;
                         }
                     }
                     if (video_track) {
                         result = MakeSampleAesVideoDescriptor(descriptor);
                         if (AP4_SUCCEEDED(result) && descriptor.GetDataSize()) {
-                            video_stream->SetDescriptor(descriptor.GetData(), descriptor.GetDataSize());
+                            video_stream->SetDescriptor(descriptor.GetData(),
+                                                        descriptor.GetDataSize());
                         } else {
-                            fprintf(stderr, "ERROR: failed to create sample-aes descriptor (%d)\n", result);
+                            sprintf(msg, "ERROR: failed to create sample-aes descriptor (%d)\n",
+                                    result);
+                            __android_log_print(ANDROID_LOG_DEBUG, "TAG", "555:%s", msg);
                             return result;
                         }
                     }
                 }
-                
+
                 ts_writer->WritePAT(*segment_output);
                 ts_writer->WritePMT(*segment_output);
             } else if (packed_writer && chosen_track == audio_track) {
-                AP4_DataBuffer       private_extension_buffer;
-                const char*          private_extension_name = NULL;
-                const unsigned char* private_extension_data = NULL;
-                unsigned int         private_extension_data_size = 0;
+                AP4_DataBuffer private_extension_buffer;
+                const char *private_extension_name = NULL;
+                const unsigned char *private_extension_data = NULL;
+                unsigned int private_extension_data_size = 0;
                 if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES) {
                     private_extension_name = "com.apple.streaming.audioDescription";
-                    result = MakeAudioSetupData(private_extension_buffer, audio_track->GetSampleDescription(0), audio_sample_data);
+                    result = MakeAudioSetupData(private_extension_buffer,
+                                                audio_track->GetSampleDescription(0),
+                                                audio_sample_data);
                     if (AP4_FAILED(result)) {
-                        fprintf(stderr, "ERROR: failed to make audio setup data (%d)\n", result);
+                        sprintf(msg, "ERROR: failed to make audio setup data (%d)\n", result);
+                        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "6566:%s", msg);
                         return 1;
                     }
-                    private_extension_data      = private_extension_buffer.GetData();
+                    private_extension_data = private_extension_buffer.GetData();
                     private_extension_data_size = private_extension_buffer.GetDataSize();
                 }
                 packed_writer->WriteHeader(audio_ts,
@@ -1262,39 +1200,49 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
         if (chosen_track == audio_track) {
             // perform sample-level encryption if needed
             if (sample_encrypter) {
-                result = sample_encrypter->EncryptAudioSample(audio_sample_data, audio_track->GetSampleDescription(audio_sample.GetDescriptionIndex()));
+                result = sample_encrypter->EncryptAudioSample(audio_sample_data,
+                                                              audio_track->GetSampleDescription(
+                                                                      audio_sample.GetDescriptionIndex()));
                 if (AP4_FAILED(result)) {
-                    fprintf(stderr, "ERROR: failed to encrypt audio sample (%d)\n", result);
+                    sprintf(msg, "ERROR: failed to encrypt audio sample (%d)\n", result);
+                    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "7777:%s", msg);
                     return result;
                 }
             }
-            
+
             // write the sample data
             if (audio_stream) {
                 result = audio_stream->WriteSample(audio_sample,
                                                    audio_sample_data,
-                                                   audio_track->GetSampleDescription(audio_sample.GetDescriptionIndex()), 
-                                                   video_track==NULL, 
+                                                   audio_track->GetSampleDescription(
+                                                           audio_sample.GetDescriptionIndex()),
+                                                   video_track == NULL,
                                                    *segment_output);
             } else if (packed_writer) {
                 result = packed_writer->WriteSample(audio_sample,
                                                     audio_sample_data,
-                                                    audio_track->GetSampleDescription(audio_sample.GetDescriptionIndex()),
+                                                    audio_track->GetSampleDescription(
+                                                            audio_sample.GetDescriptionIndex()),
                                                     *segment_output);
             } else {
                 return AP4_ERROR_INTERNAL;
             }
             if (AP4_FAILED(result)) return result;
-            
-            result = ReadSample(*audio_reader, *audio_track, audio_sample, audio_sample_data, audio_ts, audio_frame_duration, audio_eos);
-            if (AP4_FAILED(result)) return result;
+
+            result = ReadSample(*audio_reader, *audio_track, audio_sample, audio_sample_data,
+                                audio_ts, audio_frame_duration, audio_eos);
+            if (AP4_FAILED(result)) {
+                __android_log_print(ANDROID_LOG_DEBUG, "TAG", "8888:%s", msg);
+                return result;
+            }
             ++audio_sample_count;
         } else if (chosen_track == video_track) {
             // perform sample-level encryption if needed
             if (sample_encrypter) {
                 result = sample_encrypter->EncryptVideoSample(video_sample_data, nalu_length_size);
                 if (AP4_FAILED(result)) {
-                    fprintf(stderr, "ERROR: failed to encrypt video sample (%d)\n", result);
+                    sprintf(msg, "ERROR: failed to encrypt video sample (%d)\n", result);
+                    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "9999:%s", msg);
                     return result;
                 }
             }
@@ -1303,51 +1251,60 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
             AP4_Position frame_start = 0;
             segment_output->Tell(frame_start);
             result = video_stream->WriteSample(video_sample,
-                                               video_sample_data, 
-                                               video_track->GetSampleDescription(video_sample.GetDescriptionIndex()),
-                                               true, 
+                                               video_sample_data,
+                                               video_track->GetSampleDescription(
+                                                       video_sample.GetDescriptionIndex()),
+                                               true,
                                                *segment_output);
             if (AP4_FAILED(result)) return result;
             AP4_Position frame_end = 0;
             segment_output->Tell(frame_end);
-            
+
             // measure I frames
             if (video_sample.IsSync()) {
                 AP4_UI64 frame_size = 0;
                 if (frame_end > frame_start) {
-                    frame_size = frame_end-frame_start;
+                    frame_size = frame_end - frame_start;
                 }
                 if (HlsOptions.encryption_mode == ENCRYPTION_MODE_AES_128) {
                     frame_start += segment_position;
                 }
                 iframe_positions.Append(frame_start);
-                iframe_sizes.Append((AP4_UI32)frame_size);
+                iframe_sizes.Append((AP4_UI32) frame_size);
                 iframe_times.Append(video_ts);
                 iframe_segment_indexes.Append(segment_number);
                 iframe_durations.Append(0.0); // will be computed later
                 if (HlsOptions.verbose) {
-                    printf("I-Frame: %d@%lld, t=%f\n", (AP4_UI32)frame_size, frame_start, video_ts);
+                    printf("I-Frame: %d@%lld, t=%f\n", (AP4_UI32) frame_size, frame_start,
+                           video_ts);
                 }
             }
-            
+
             // read the next sample
-            result = ReadSample(*video_reader, *video_track, video_sample, video_sample_data, video_ts, video_frame_duration, video_eos);
-            if (AP4_FAILED(result)) return result;
+            result = ReadSample(*video_reader, *video_track, video_sample, video_sample_data,
+                                video_ts, video_frame_duration, video_eos);
+            if (AP4_FAILED(result)) {
+                __android_log_print(ANDROID_LOG_DEBUG, "TAG", "aaaa:%s", msg);
+                return result;
+            }
             ++video_sample_count;
         } else {
             break;
         }
     }
-    
+
     // create the media playlist/index file
     playlist = OpenOutput(HlsOptions.index_filename, 0);
-    if (playlist == NULL) return AP4_ERROR_CANNOT_OPEN_FILE;
+    if (playlist == NULL) {
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "打开文件失败");
+        return AP4_ERROR_CANNOT_OPEN_FILE;
+    }
 
     unsigned int target_duration = 0;
-    double       total_duration = 0.0;
-    for (unsigned int i=0; i<segment_durations.ItemCount(); i++) {
-        if ((unsigned int)(segment_durations[i]+0.5) > target_duration) {
-            target_duration = (unsigned int)segment_durations[i];
+    double total_duration = 0.0;
+    for (unsigned int i = 0; i < segment_durations.ItemCount(); i++) {
+        if ((unsigned int) (segment_durations[i] + 0.5) > target_duration) {
+            target_duration = (unsigned int) segment_durations[i];
         }
         total_duration += segment_durations[i];
     }
@@ -1373,17 +1330,17 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
 
     if (HlsOptions.encryption_mode != ENCRYPTION_MODE_NONE) {
         if (HlsOptions.encryption_key_lines.ItemCount()) {
-            for (unsigned int i=0; i < HlsOptions.encryption_key_lines.ItemCount(); i++) {
-                AP4_String& key_line = HlsOptions.encryption_key_lines[i];
-                const char* key_line_cstr = key_line.GetChars();
+            for (unsigned int i = 0; i < HlsOptions.encryption_key_lines.ItemCount(); i++) {
+                AP4_String &key_line = HlsOptions.encryption_key_lines[i];
+                const char *key_line_cstr = key_line.GetChars();
                 bool omit_iv = false;
-                
+
                 // omit the IV if the key line starts with a "!" (and skip the "!")
                 if (key_line[0] == '!') {
                     ++key_line_cstr;
                     omit_iv = true;
                 }
-                
+
                 playlist->WriteString("#EXT-X-KEY:METHOD=");
                 if (HlsOptions.encryption_mode == ENCRYPTION_MODE_AES_128) {
                     playlist->WriteString("AES-128");
@@ -1432,45 +1389,46 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
             playlist->WriteString("\r\n");
         }
     }
-    
-    for (unsigned int i=0; i<segment_durations.ItemCount(); i++) {
+
+    for (unsigned int i = 0; i < segment_durations.ItemCount(); i++) {
         if (HlsOptions.hls_version >= 3) {
             sprintf(string_buffer, "#EXTINF:%f,\r\n", segment_durations[i]);
         } else {
-            sprintf(string_buffer, "#EXTINF:%u,\r\n", (unsigned int)(segment_durations[i]+0.5));
+            sprintf(string_buffer, "#EXTINF:%u,\r\n", (unsigned int) (segment_durations[i] + 0.5));
         }
         playlist->WriteString(string_buffer);
         if (HlsOptions.output_single_file) {
-            sprintf(string_buffer, "#EXT-X-BYTERANGE:%d@%lld\r\n", segment_sizes[i], segment_positions[i]);
+            sprintf(string_buffer, "#EXT-X-BYTERANGE:%d@%lld\r\n", segment_sizes[i],
+                    segment_positions[i]);
             playlist->WriteString(string_buffer);
         }
         sprintf(string_buffer, HlsOptions.segment_url_template, i);
         playlist->WriteString(string_buffer);
         playlist->WriteString("\r\n");
     }
-                    
+
     playlist->WriteString("#EXT-X-ENDLIST\r\n");
     playlist->Release();
 
     // create the iframe playlist/index file
     if (video_track && HlsOptions.hls_version >= 4) {
         // compute the iframe durations and target duration
-        for (unsigned int i=0; i<iframe_positions.ItemCount(); i++) {
+        for (unsigned int i = 0; i < iframe_positions.ItemCount(); i++) {
             double iframe_duration = 0.0;
-            if (i+1 < iframe_positions.ItemCount()) {
-                iframe_duration = iframe_times[i+1]-iframe_times[i];
+            if (i + 1 < iframe_positions.ItemCount()) {
+                iframe_duration = iframe_times[i + 1] - iframe_times[i];
             } else if (total_duration > iframe_times[i]) {
-                iframe_duration = total_duration-iframe_times[i];
+                iframe_duration = total_duration - iframe_times[i];
             }
             iframe_durations[i] = iframe_duration;
         }
         unsigned int iframes_target_duration = 0;
-        for (unsigned int i=0; i<iframe_durations.ItemCount(); i++) {
-            if ((unsigned int)(iframe_durations[i]+0.5) > iframes_target_duration) {
-                iframes_target_duration = (unsigned int)iframe_durations[i];
+        for (unsigned int i = 0; i < iframe_durations.ItemCount(); i++) {
+            if ((unsigned int) (iframe_durations[i] + 0.5) > iframes_target_duration) {
+                iframes_target_duration = (unsigned int) iframe_durations[i];
             }
         }
-        
+
         playlist = OpenOutput(HlsOptions.iframe_index_filename, 0);
         if (playlist == NULL) return AP4_ERROR_CANNOT_OPEN_FILE;
 
@@ -1516,234 +1474,243 @@ WriteSamples(AP4_Mpeg2TsWriter*               ts_writer,
             }
             playlist->WriteString("\r\n");
         }
-        
-        for (unsigned int i=0; i<iframe_positions.ItemCount(); i++) {
+
+        for (unsigned int i = 0; i < iframe_positions.ItemCount(); i++) {
             sprintf(string_buffer, "#EXTINF:%f,\r\n", iframe_durations[i]);
             playlist->WriteString(string_buffer);
-            sprintf(string_buffer, "#EXT-X-BYTERANGE:%d@%lld\r\n", iframe_sizes[i], iframe_positions[i]);
+            sprintf(string_buffer, "#EXT-X-BYTERANGE:%d@%lld\r\n", iframe_sizes[i],
+                    iframe_positions[i]);
             playlist->WriteString(string_buffer);
             sprintf(string_buffer, HlsOptions.segment_url_template, iframe_segment_indexes[i]);
             playlist->WriteString(string_buffer);
             playlist->WriteString("\r\n");
         }
-                        
+
         playlist->WriteString("#EXT-X-ENDLIST\r\n");
         playlist->Release();
     }
-    
+
     // update stats
     Stats.segment_count = segment_sizes.ItemCount();
-    for (unsigned int i=0; i<segment_sizes.ItemCount(); i++) {
-        Stats.segments_total_size     += segment_sizes[i];
+    for (unsigned int i = 0; i < segment_sizes.ItemCount(); i++) {
+        Stats.segments_total_size += segment_sizes[i];
         Stats.segments_total_duration += segment_durations[i];
     }
     Stats.iframe_count = iframe_sizes.ItemCount();
-    for (unsigned int i=0; i<iframe_sizes.ItemCount(); i++) {
+    for (unsigned int i = 0; i < iframe_sizes.ItemCount(); i++) {
         Stats.iframes_total_size += iframe_sizes[i];
     }
-    for (unsigned int i=0; i<iframe_positions.ItemCount(); i++) {
+    for (unsigned int i = 0; i < iframe_positions.ItemCount(); i++) {
         if (iframe_durations[i] != 0.0) {
-            double iframe_bitrate = 8.0*(double)iframe_sizes[i]/iframe_durations[i];
+            double iframe_bitrate = 8.0 * (double) iframe_sizes[i] / iframe_durations[i];
             if (iframe_bitrate > Stats.max_iframe_bitrate) {
                 Stats.max_iframe_bitrate = iframe_bitrate;
             }
         }
     }
-    
+
     if (HlsOptions.verbose) {
-        printf("Conversion complete, total duration=%.2f secs\n", total_duration);
+        sprintf(msg, "Conversion complete, total duration=%.2f secs\n", total_duration);
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "bbbb:%s", msg);
     }
-    
+
     if (segment_output) segment_output->Release();
     delete sample_encrypter;
-    
+
+    if (AP4_FAILED(result)) {
+        __android_log_print(ANDROID_LOG_DEBUG, "eee", "dddddddddddd----------------------------");
+    }
+
     return result;
 }
 
 /*----------------------------------------------------------------------
 |   main
 +---------------------------------------------------------------------*/
-int
-main(int argc, char** argv)
-{
+std::string Mp42Hls::mp42hls(int argc, char **argv) {
+
+    auto t = std::chrono::steady_clock::now();
+
+    char msg[256];
     if (argc < 2) {
         PrintUsageAndExit();
     }
-    
+
     // default options
-    HlsOptions.input                          = NULL;
-    HlsOptions.verbose                        = false;
-    HlsOptions.hls_version                    = 0;
-    HlsOptions.pmt_pid                        = 0x100;
-    HlsOptions.audio_pid                      = 0x101;
-    HlsOptions.video_pid                      = 0x102;
-    HlsOptions.audio_track_id                 = -1;
-    HlsOptions.video_track_id                 = -1;
-    HlsOptions.audio_format                   = AUDIO_FORMAT_TS;
-    HlsOptions.output_single_file             = false;
-    HlsOptions.show_info                      = false;
-    HlsOptions.index_filename                 = "stream.m3u8";
-    HlsOptions.iframe_index_filename          = NULL;
-    HlsOptions.segment_filename_template      = NULL;
-    HlsOptions.segment_url_template           = NULL;
-    HlsOptions.segment_duration               = 6;
-    HlsOptions.segment_duration_threshold     = DefaultSegmentDurationThreshold;
-    HlsOptions.allow_cache                    = NULL;
-    HlsOptions.encryption_key_hex             = NULL;
-    HlsOptions.encryption_mode                = ENCRYPTION_MODE_NONE;
-    HlsOptions.encryption_iv_mode             = ENCRYPTION_IV_MODE_NONE;
-    HlsOptions.encryption_key_uri             = "key.bin";
-    HlsOptions.encryption_key_format          = NULL;
+    HlsOptions.input = NULL;
+    HlsOptions.verbose = false;
+    HlsOptions.hls_version = 0;
+    HlsOptions.pmt_pid = 0x100;
+    HlsOptions.audio_pid = 0x101;
+    HlsOptions.video_pid = 0x102;
+    HlsOptions.audio_track_id = -1;
+    HlsOptions.video_track_id = -1;
+    HlsOptions.audio_format = AUDIO_FORMAT_TS;
+    HlsOptions.output_single_file = false;
+    HlsOptions.show_info = false;
+    HlsOptions.index_filename = "stream.m3u8";
+    HlsOptions.iframe_index_filename = NULL;
+    HlsOptions.segment_filename_template = NULL;
+    HlsOptions.segment_url_template = NULL;
+    HlsOptions.segment_duration = 6;
+    HlsOptions.segment_duration_threshold = DefaultSegmentDurationThreshold;
+    HlsOptions.allow_cache = NULL;
+    HlsOptions.encryption_key_hex = NULL;
+    HlsOptions.encryption_mode = ENCRYPTION_MODE_NONE;
+    HlsOptions.encryption_iv_mode = ENCRYPTION_IV_MODE_NONE;
+    HlsOptions.encryption_key_uri = "key.bin";
+    HlsOptions.encryption_key_format = NULL;
     HlsOptions.encryption_key_format_versions = NULL;
-    HlsOptions.pcr_offset                     = AP4_MPEG2_TS_DEFAULT_PCR_OFFSET;
+    HlsOptions.pcr_offset = AP4_MPEG2_TS_DEFAULT_PCR_OFFSET;
     AP4_SetMemory(HlsOptions.encryption_key, 0, sizeof(HlsOptions.encryption_key));
     AP4_SetMemory(HlsOptions.encryption_iv, 0, sizeof(HlsOptions.encryption_iv));
     AP4_SetMemory(&Stats, 0, sizeof(Stats));
 
     // parse command line
     AP4_Result result;
-    char** args = argv+1;
-    while (const char* arg = *args++) {
+    char **args = argv + 1;
+    while (const char *arg = *args++) {
         if (!strcmp(arg, "--verbose")) {
             HlsOptions.verbose = true;
         } else if (!strcmp(arg, "--hls-version")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --hls-version requires a number\n");
-                return 1;
+                sprintf(msg, "ERROR: --hls-version requires a number\n");
+                return msg;
             }
-            HlsOptions.hls_version = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.hls_version = (unsigned int) strtoul(*args++, NULL, 10);
             if (HlsOptions.hls_version == 0) {
-                fprintf(stderr, "ERROR: --hls-version requires number > 0\n");
-                return 1;
+                sprintf(msg, "ERROR: --hls-version requires number > 0\n");
+                return msg;
             }
         } else if (!strcmp(arg, "--segment-duration")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --segment-duration requires a number\n");
-                return 1;
+                sprintf(msg, "ERROR: --segment-duration requires a number\n");
+                return msg;
             }
-            HlsOptions.segment_duration = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.segment_duration = (unsigned int) strtoul(*args++, NULL, 10);
         } else if (!strcmp(arg, "--segment-duration-threshold")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --segment-duration-threshold requires a number\n");
-                return 1;
+                sprintf(msg, "ERROR: --segment-duration-threshold requires a number\n");
+                return msg;
             }
-            HlsOptions.segment_duration_threshold = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.segment_duration_threshold = (unsigned int) strtoul(*args++, NULL, 10);
         } else if (!strcmp(arg, "--segment-filename-template")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --segment-filename-template requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --segment-filename-template requires an argument\n");
+                return msg;
             }
             HlsOptions.segment_filename_template = *args++;
         } else if (!strcmp(arg, "--segment-url-template")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --segment-url-template requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --segment-url-template requires an argument\n");
+                return msg;
             }
             HlsOptions.segment_url_template = *args++;
         } else if (!strcmp(arg, "--allow-cache")) {
             if (*args == NULL || (strcmp(*args, "NO") && strcmp(*args, "YES"))) {
-                fprintf(stderr, "ERROR: --allow-cache requires a YES or NO argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --allow-cache requires a YES or NO argument\n");
+                return msg;
             }
             HlsOptions.allow_cache = *args++;
         } else if (!strcmp(arg, "--pmt-pid")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --pmt-pid requires a number\n");
-                return 1;
+                sprintf(msg, "ERROR: --pmt-pid requires a number\n");
+                return msg;
             }
-            HlsOptions.pmt_pid = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.pmt_pid = (unsigned int) strtoul(*args++, NULL, 10);
         } else if (!strcmp(arg, "--audio-pid")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --audio-pid requires a number\n");
-                return 1;
+                sprintf(msg, "ERROR: --audio-pid requires a number\n");
+                return msg;
             }
-            HlsOptions.audio_pid = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.audio_pid = (unsigned int) strtoul(*args++, NULL, 10);
         } else if (!strcmp(arg, "--video-pid")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --video-pid requires a number\n");
-                return 1;
+                sprintf(msg, "ERROR: --video-pid requires a number\n");
+                return msg;
             }
-            HlsOptions.video_pid = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.video_pid = (unsigned int) strtoul(*args++, NULL, 10);
         } else if (!strcmp(arg, "--audio-track-id")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --audio-track-id requires a number\n");
-                return 1;
+                sprintf(msg, "ERROR: --audio-track-id requires a number\n");
+                return msg;
             }
-            HlsOptions.audio_track_id = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.audio_track_id = (unsigned int) strtoul(*args++, NULL, 10);
         } else if (!strcmp(arg, "--audio-format")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --audio-format requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --audio-format requires an argument\n");
+                return msg;
             }
-            const char* format = *args++;
+            const char *format = *args++;
             if (!strcmp(format, "ts")) {
                 HlsOptions.audio_format = AUDIO_FORMAT_TS;
             } else if (!strcmp(format, "packed")) {
                 HlsOptions.audio_format = AUDIO_FORMAT_PACKED;
             } else {
-                fprintf(stderr, "ERROR: unknown audio format\n");
-                return 1;
+                sprintf(msg, "ERROR: unknown audio format\n");
+                __android_log_print(ANDROID_LOG_DEBUG, "TAG", "ERROR: unknown audio format");
+                return msg;
             }
         } else if (!strcmp(arg, "--video-track-id")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --video-track-id requires a number\n");
-                return 1;
+                sprintf(msg, "ERROR: --video-track-id requires a number\n");
+                return msg;
             }
-            HlsOptions.video_track_id = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.video_track_id = (unsigned int) strtoul(*args++, NULL, 10);
         } else if (!strcmp(arg, "--pcr-offset")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --pcr-offset requires a number\n");
-                return 1;
+                sprintf(msg, "ERROR: --pcr-offset requires a number\n");
+                return msg;
             }
-            HlsOptions.pcr_offset = (unsigned int)strtoul(*args++, NULL, 10);
+            HlsOptions.pcr_offset = (unsigned int) strtoul(*args++, NULL, 10);
         } else if (!strcmp(arg, "--output-single-file")) {
             HlsOptions.output_single_file = true;
         } else if (!strcmp(arg, "--index-filename")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --index-filename requires a filename\n");
-                return 1;
+                sprintf(msg, "ERROR: --index-filename requires a filename\n");
+                return msg;
             }
             HlsOptions.index_filename = *args++;
         } else if (!strcmp(arg, "--iframe-index-filename")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --iframe-index-filename requires a filename\n");
-                return 1;
+                sprintf(msg, "ERROR: --iframe-index-filename requires a filename\n");
+                return msg;
             }
             HlsOptions.iframe_index_filename = *args++;
         } else if (!strcmp(arg, "--show-info")) {
             HlsOptions.show_info = true;
         } else if (!strcmp(arg, "--encryption-key")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --encryption-key requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --encryption-key requires an argument\n");
+                return msg;
             }
             HlsOptions.encryption_key_hex = *args++;
             result = AP4_ParseHex(HlsOptions.encryption_key_hex, HlsOptions.encryption_key, 16);
             if (AP4_FAILED(result)) {
-                fprintf(stderr, "ERROR: invalid hex key\n");
-                return 1;
+                sprintf(msg, "ERROR: invalid hex key\n");
+                return msg;
             }
             if (HlsOptions.encryption_mode == ENCRYPTION_MODE_NONE) {
                 HlsOptions.encryption_mode = ENCRYPTION_MODE_AES_128;
             }
         } else if (!strcmp(arg, "--encryption-mode")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --encryption-mode requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --encryption-mode requires an argument\n");
+                return msg;
             }
             if (strncmp(*args, "AES-128", 7) == 0) {
                 HlsOptions.encryption_mode = ENCRYPTION_MODE_AES_128;
             } else if (strncmp(*args, "SAMPLE-AES", 10) == 0) {
                 HlsOptions.encryption_mode = ENCRYPTION_MODE_SAMPLE_AES;
             } else {
-                fprintf(stderr, "ERROR: unknown encryption mode\n");
-                return 1;
+                sprintf(msg, "ERROR: unknown encryption mode\n");
+                return msg;
             }
             ++args;
         } else if (!strcmp(arg, "--encryption-iv-mode")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --encryption-iv-mode requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --encryption-iv-mode requires an argument\n");
+                return msg;
             }
             if (strncmp(*args, "sequence", 8) == 0) {
                 HlsOptions.encryption_iv_mode = ENCRYPTION_IV_MODE_SEQUENCE;
@@ -1752,64 +1719,75 @@ main(int argc, char** argv)
             } else if (strncmp(*args, "fps", 3) == 0) {
                 HlsOptions.encryption_iv_mode = ENCRYPTION_IV_MODE_FPS;
             } else {
-                fprintf(stderr, "ERROR: unknown encryption IV mode\n");
-                return 1;
+                sprintf(msg, "ERROR: unknown encryption IV mode\n");
+                return msg;
             }
             ++args;
         } else if (!strcmp(arg, "--encryption-key-uri")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --encryption-key-uri requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --encryption-key-uri requires an argument\n");
+                return msg;
             }
             HlsOptions.encryption_key_uri = *args++;
         } else if (!strcmp(arg, "--encryption-key-format")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --encryption-key-format requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --encryption-key-format requires an argument\n");
+                return msg;
             }
             HlsOptions.encryption_key_format = *args++;
         } else if (!strcmp(arg, "--encryption-key-format-versions")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --encryption-key-format-versions requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --encryption-key-format-versions requires an argument\n");
+                return msg;
             }
             HlsOptions.encryption_key_format_versions = *args++;
         } else if (!strcmp(arg, "--encryption-key-line")) {
             if (*args == NULL) {
-                fprintf(stderr, "ERROR: --encryption-key-line requires an argument\n");
-                return 1;
+                sprintf(msg, "ERROR: --encryption-key-line requires an argument\n");
+                return msg;
             }
             HlsOptions.encryption_key_lines.Append(*args++);
         } else if (HlsOptions.input == NULL) {
             HlsOptions.input = arg;
+            __android_log_print(ANDROID_LOG_DEBUG, "TAG", "文件输入路径:%s", HlsOptions.input);
         } else {
-            fprintf(stderr, "ERROR: unexpected argument: %s\n", arg);
-            return 1;
+            sprintf(msg, "ERROR: unexpected argument: %s\n", arg);
+            break;
         }
     }
 
     // check args
     if (HlsOptions.input == NULL) {
-        fprintf(stderr, "ERROR: missing input file name\n");
-        return 1;
+        sprintf(msg, "ERROR: missing input file name\n");
+        return msg;
     }
-    if (HlsOptions.encryption_mode == ENCRYPTION_MODE_NONE && HlsOptions.encryption_key_lines.ItemCount() != 0) {
-        fprintf(stderr, "ERROR: --encryption-key-line requires --encryption-key and --encryption-key-mode\n");
-        return 1;
+    if (HlsOptions.encryption_mode == ENCRYPTION_MODE_NONE &&
+        HlsOptions.encryption_key_lines.ItemCount() != 0) {
+        sprintf(msg,
+                "ERROR: --encryption-key-line requires --encryption-key and --encryption-key-mode\n");
+        return msg;
     }
-    if (HlsOptions.encryption_mode != ENCRYPTION_MODE_NONE && HlsOptions.encryption_key_hex == NULL) {
-        fprintf(stderr, "ERROR: no encryption key specified\n");
-        return 1;
+    if (HlsOptions.encryption_mode != ENCRYPTION_MODE_NONE &&
+        HlsOptions.encryption_key_hex == NULL) {
+        sprintf(msg, "ERROR: no encryption key specified\n");
+        return msg;
     }
-    if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES && HlsOptions.hls_version > 0 && HlsOptions.hls_version < 5) {
+    if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES && HlsOptions.hls_version > 0 &&
+        HlsOptions.hls_version < 5) {
         HlsOptions.hls_version = 5;
-        fprintf(stderr, "WARNING: forcing version to 5 in order to support SAMPLE-AES encryption\n");
+        sprintf(msg,
+                "WARNING: forcing version to 5 in order to support SAMPLE-AES encryption\n");
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
     }
-    if (HlsOptions.iframe_index_filename && HlsOptions.hls_version > 0 && HlsOptions.hls_version < 4) {
-        fprintf(stderr, "WARNING: forcing version to 4 in order to support I-FRAME-ONLY playlists\n");
+    if (HlsOptions.iframe_index_filename && HlsOptions.hls_version > 0 &&
+        HlsOptions.hls_version < 4) {
+        sprintf(msg,
+                "WARNING: forcing version to 4 in order to support I-FRAME-ONLY playlists\n");
         HlsOptions.hls_version = 4;
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
     }
-    if (HlsOptions.encryption_iv_mode == ENCRYPTION_IV_MODE_NONE && HlsOptions.encryption_mode != ENCRYPTION_MODE_NONE) {
+    if (HlsOptions.encryption_iv_mode == ENCRYPTION_IV_MODE_NONE &&
+        HlsOptions.encryption_mode != ENCRYPTION_MODE_NONE) {
         if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES) {
             // sequence-mode IVs don't work well with i-frame only playlists, use random instead
             HlsOptions.encryption_iv_mode = ENCRYPTION_IV_MODE_RANDOM;
@@ -1817,13 +1795,17 @@ main(int argc, char** argv)
             HlsOptions.encryption_iv_mode = ENCRYPTION_IV_MODE_SEQUENCE;
         }
     }
-    if ((HlsOptions.encryption_key_format || HlsOptions.encryption_key_format_versions) && HlsOptions.hls_version > 0 && HlsOptions.hls_version < 5) {
+    if ((HlsOptions.encryption_key_format || HlsOptions.encryption_key_format_versions) &&
+        HlsOptions.hls_version > 0 && HlsOptions.hls_version < 5) {
         HlsOptions.hls_version = 5;
-        fprintf(stderr, "WARNING: forcing version to 5 in order to support KEYFORMAT and/or KEYFORMATVERSIONS\n");
+        sprintf(msg,
+                "WARNING: forcing version to 5 in order to support KEYFORMAT and/or KEYFORMATVERSIONS\n");
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
     }
     if (HlsOptions.output_single_file && HlsOptions.hls_version > 0 && HlsOptions.hls_version < 4) {
         HlsOptions.hls_version = 4;
-        fprintf(stderr, "WARNING: forcing version to 4 in order to support single file output\n");
+        sprintf(msg, "WARNING: forcing version to 4 in order to support single file output\n");
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
     }
     if (HlsOptions.hls_version == 0) {
         // default version is 3 for cleartext or AES-128 encryption, and 5 for SAMPLE-AES
@@ -1835,9 +1817,10 @@ main(int argc, char** argv)
             HlsOptions.hls_version = 3;
         }
     }
-    
+
     if (HlsOptions.verbose && HlsOptions.show_info) {
-        fprintf(stderr, "WARNING: --verbose will be ignored because --show-info is selected\n");
+        sprintf(msg, "WARNING: --verbose will be ignored because --show-info is selected\n");
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
         HlsOptions.verbose = false;
     }
 
@@ -1863,152 +1846,174 @@ main(int argc, char** argv)
             }
         }
     }
-    
+
     if (HlsOptions.encryption_iv_mode == ENCRYPTION_IV_MODE_FPS) {
-        if (HlsOptions.encryption_key_hex == NULL || AP4_StringLength(HlsOptions.encryption_key_hex) != 64) {
-            fprintf(stderr, "ERROR: 'fps' IV mode requires a 32 byte key value (64 characters in hex)\n");
-            return 1;
+        if (HlsOptions.encryption_key_hex == NULL ||
+            AP4_StringLength(HlsOptions.encryption_key_hex) != 64) {
+            sprintf(msg,
+                    "ERROR: 'fps' IV mode requires a 32 byte key value (64 characters in hex)\n");
+            return msg;
         }
         result = AP4_ParseHex(HlsOptions.encryption_key_hex + 32, HlsOptions.encryption_iv, 16);
         if (AP4_FAILED(result)) {
-            fprintf(stderr, "ERROR: invalid hex IV\n");
-            return 1;
+            sprintf(msg, "ERROR: invalid hex IV\n");
+            return msg;
         }
     } else if (HlsOptions.encryption_iv_mode == ENCRYPTION_IV_MODE_RANDOM) {
-        result = AP4_System_GenerateRandomBytes(HlsOptions.encryption_iv, sizeof(HlsOptions.encryption_iv));
+        result = AP4_System_GenerateRandomBytes(HlsOptions.encryption_iv,
+                                                sizeof(HlsOptions.encryption_iv));
         if (AP4_FAILED(result)) {
-            fprintf(stderr, "ERROR: failed to get random IV (%d)\n", result);
-            return 1;
+            sprintf(msg, "ERROR: failed to get random IV (%d)\n", result);
+            return msg;
         }
     }
-    
-	// create the input stream
-    AP4_ByteStream* input = NULL;
-    result = AP4_FileByteStream::Create(HlsOptions.input, AP4_FileByteStream::STREAM_MODE_READ, input);
+
+    // create the input stream
+    AP4_ByteStream *input = NULL;
+    result = AP4_FileByteStream::Create(HlsOptions.input, AP4_FileByteStream::STREAM_MODE_READ,
+                                        input);
     if (AP4_FAILED(result)) {
-        fprintf(stderr, "ERROR: cannot open input (%d)\n", result);
-        return 1;
+        sprintf(msg, "ERROR: cannot open input (%d)\n", result);
+        return msg;
     }
-    
-	// open the file
-    AP4_File* input_file = new AP4_File(*input, true);
+
+    // open the file
+    AP4_File *input_file = new AP4_File(*input, true);
 
     // get the movie
-    AP4_SampleDescription* sample_description;
-    AP4_Movie* movie = input_file->GetMovie();
+    AP4_SampleDescription *sample_description;
+    AP4_Movie *movie = input_file->GetMovie();
     if (movie == NULL) {
-        fprintf(stderr, "ERROR: no movie in file\n");
-        return 1;
+        sprintf(msg, "ERROR: no movie in file\n");
+        return msg;
     }
 
     // get the audio and video tracks
-    AP4_Track* audio_track = NULL;
+    AP4_Track *audio_track = NULL;
     if (HlsOptions.audio_track_id == -1) {
         audio_track = movie->GetTrack(AP4_Track::TYPE_AUDIO);
     } else if (HlsOptions.audio_track_id > 0) {
-        audio_track = movie->GetTrack((AP4_UI32)HlsOptions.audio_track_id);
+        audio_track = movie->GetTrack((AP4_UI32) HlsOptions.audio_track_id);
         if (audio_track == NULL) {
-            fprintf(stderr, "ERROR: audio track ID %d not found\n", HlsOptions.audio_track_id);
-            return 1;
+            sprintf(msg, "ERROR: audio track ID %d not found\n", HlsOptions.audio_track_id);
+            return msg;
         }
         if (audio_track->GetType() != AP4_Track::TYPE_AUDIO) {
-            fprintf(stderr, "ERROR: track ID %d is not an audio track\n", HlsOptions.audio_track_id);
-            return 1;
+            sprintf(msg, "ERROR: track ID %d is not an audio track\n", HlsOptions.audio_track_id);
+            return msg;
         }
     }
-    AP4_Track* video_track = NULL;
+
+    AP4_Track *video_track = NULL;
     if (HlsOptions.video_track_id == -1) {
         video_track = movie->GetTrack(AP4_Track::TYPE_VIDEO);
     } else if (HlsOptions.video_track_id > 0) {
-        video_track = movie->GetTrack((AP4_UI32)HlsOptions.video_track_id);
+        video_track = movie->GetTrack((AP4_UI32) HlsOptions.video_track_id);
         if (video_track == NULL) {
-            fprintf(stderr, "ERROR: video track ID %d not found\n", HlsOptions.video_track_id);
-            return 1;
+            sprintf(msg, "ERROR: video track ID %d not found\n", HlsOptions.video_track_id);
+            return msg;
         }
         if (video_track->GetType() != AP4_Track::TYPE_VIDEO) {
-            fprintf(stderr, "ERROR: track ID %d is not a video track\n", HlsOptions.video_track_id);
-            return 1;
+            sprintf(msg, "ERROR: track ID %d is not a video track\n", HlsOptions.video_track_id);
+            return msg;
         }
     }
+
     if (audio_track == NULL && video_track == NULL) {
-        fprintf(stderr, "ERROR: no suitable tracks found\n");
+        sprintf(msg, "ERROR: no suitable tracks found\n");
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
         delete input_file;
         input->Release();
-        return 1;
+        return msg;
     }
+
     if (HlsOptions.audio_format == AUDIO_FORMAT_PACKED && video_track != NULL) {
         if (audio_track == NULL) {
-            fprintf(stderr, "ERROR: packed audio format requires an audio track\n");
-            return 1;
+            sprintf(msg, "ERROR: packed audio format requires an audio track\n");
+            return msg;
         }
-        fprintf(stderr, "WARNING: ignoring video track because of the packed audio format\n");
+        sprintf(msg, "WARNING: ignoring video track because of the packed audio format\n");
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG",
+                            "WARNING: ignoring video track because of the packed audio format");
         video_track = NULL;
     }
     if (video_track == NULL) {
         HlsOptions.segment_duration_threshold = 0;
     }
-    
+
     // create the appropriate readers
-    AP4_LinearReader* linear_reader = NULL;
-    SampleReader*     audio_reader  = NULL;
-    SampleReader*     video_reader  = NULL;
+    AP4_LinearReader *linear_reader = NULL;
+    SampleReader *audio_reader = NULL;
+    SampleReader *video_reader = NULL;
     if (movie->HasFragments()) {
         // create a linear reader to get the samples
         linear_reader = new AP4_LinearReader(*movie, input);
-    
+
         if (audio_track) {
+            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
+                                "====================================audio");
             linear_reader->EnableTrack(audio_track->GetId());
-            audio_reader = new FragmentedSampleReader(*linear_reader, audio_track->GetId());
+            audio_reader = new FragmentedSampleHlsReader(*linear_reader, audio_track->GetId());
         }
         if (video_track) {
+            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
+                                "====================================video");
             linear_reader->EnableTrack(video_track->GetId());
-            video_reader = new FragmentedSampleReader(*linear_reader, video_track->GetId());
+            video_reader = new FragmentedSampleHlsReader(*linear_reader, video_track->GetId());
         }
     } else {
         if (audio_track) {
-            audio_reader = new TrackSampleReader(*audio_track);
+            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
+                                "====================================aaudio");
+            audio_reader = new TrackSampleHlsReader(*audio_track);
         }
         if (video_track) {
-            video_reader = new TrackSampleReader(*video_track);
+            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
+                                "====================================vvideo");
+            video_reader = new TrackSampleHlsReader(*video_track);
         }
     }
-    
-    AP4_Mpeg2TsWriter*               ts_writer = NULL;
-    AP4_Mpeg2TsWriter::SampleStream* audio_stream = NULL;
-    AP4_Mpeg2TsWriter::SampleStream* video_stream = NULL;
-    AP4_UI08                         nalu_length_size = 0;
-    PackedAudioWriter*               packed_writer = NULL;
+
+    AP4_Mpeg2TsWriter *ts_writer = NULL;
+    AP4_Mpeg2TsWriter::SampleStream *audio_stream = NULL;
+    AP4_Mpeg2TsWriter::SampleStream *video_stream = NULL;
+    AP4_UI08 nalu_length_size = 0;
+    PackedAudioWriter *packed_writer = NULL;
     if (HlsOptions.audio_format == AUDIO_FORMAT_PACKED) {
         packed_writer = new PackedAudioWriter();
-    
+
         // figure out the file extensions if needed
         sample_description = audio_track->GetSampleDescription(0);
         if (sample_description == NULL) {
-            fprintf(stderr, "ERROR: unable to parse audio sample description\n");
+            sprintf(msg, "ERROR: unable to parse audio sample description\n");
+            __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
             goto end;
         }
-        if (HlsOptions.segment_filename_template == NULL || HlsOptions.segment_url_template == NULL) {
-            const char* default_stream_name    = "stream.es";
-            const char* default_stream_pattern = "segment-%d.es";
+        if (HlsOptions.segment_filename_template == NULL ||
+            HlsOptions.segment_url_template == NULL) {
+            const char *default_stream_name = "stream.es";
+            const char *default_stream_pattern = "segment-%d.es";
             if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_MP4A) {
-                AP4_MpegAudioSampleDescription* mpeg_audio_desc = AP4_DYNAMIC_CAST(AP4_MpegAudioSampleDescription, sample_description);
+                AP4_MpegAudioSampleDescription *mpeg_audio_desc = AP4_DYNAMIC_CAST(
+                        AP4_MpegAudioSampleDescription, sample_description);
                 if (mpeg_audio_desc == NULL ||
-                    !(mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG4_AUDIO          ||
-                      mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG2_AAC_AUDIO_LC   ||
+                    !(mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG4_AUDIO ||
+                      mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG2_AAC_AUDIO_LC ||
                       mpeg_audio_desc->GetObjectTypeId() == AP4_OTI_MPEG2_AAC_AUDIO_MAIN)) {
-                    fprintf(stderr, "ERROR: only AAC audio is supported\n");
-                    return 1;
+                    sprintf(msg, "ERROR: only AAC audio is supported\n");
+                    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
+                    return msg;
                 }
-                default_stream_name    = "stream.aac";
+                default_stream_name = "stream.aac";
                 default_stream_pattern = "segment-%d.aac";
             } else if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_AC_3) {
-                default_stream_name    = "stream.ac3";
+                default_stream_name = "stream.ac3";
                 default_stream_pattern = "segment-%d.ac3";
             } else if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_EC_3) {
-                default_stream_name    = "stream.ec3";
+                default_stream_name = "stream.ec3";
                 default_stream_pattern = "segment-%d.ec3";
             } else if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_AC_4) {
-                default_stream_name    = "stream.ac4";
+                default_stream_name = "stream.ac4";
                 default_stream_pattern = "segment-%d.ac4";
             }
 
@@ -2036,46 +2041,51 @@ main(int argc, char** argv)
         if (audio_track) {
             sample_description = audio_track->GetSampleDescription(0);
             if (sample_description == NULL) {
-                fprintf(stderr, "ERROR: unable to parse audio sample description\n");
+                sprintf(msg, "ERROR: unable to parse audio sample description\n");
+                __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
                 goto end;
             }
 
             unsigned int stream_type = 0;
-            unsigned int stream_id   = 0;
+            unsigned int stream_id = 0;
             if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_MP4A) {
                 if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES) {
                     stream_type = AP4_MPEG2_STREAM_TYPE_SAMPLE_AES_ISO_IEC_13818_7;
                 } else {
                     stream_type = AP4_MPEG2_STREAM_TYPE_ISO_IEC_13818_7;
                 }
-                stream_id   = AP4_MPEG2_TS_DEFAULT_STREAM_ID_AUDIO;
+                stream_id = AP4_MPEG2_TS_DEFAULT_STREAM_ID_AUDIO;
             } else if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_AC_3) {
                 if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES) {
                     stream_type = AP4_MPEG2_STREAM_TYPE_SAMPLE_AES_ATSC_AC3;
                 } else {
                     stream_type = AP4_MPEG2_STREAM_TYPE_ATSC_AC3;
                 }
-                stream_id   = AP4_MPEG2_TS_STREAM_ID_PRIVATE_STREAM_1;
+                stream_id = AP4_MPEG2_TS_STREAM_ID_PRIVATE_STREAM_1;
             } else if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_EC_3) {
                 if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES) {
                     stream_type = AP4_MPEG2_STREAM_TYPE_SAMPLE_AES_ATSC_EAC3;
                 } else {
                     stream_type = AP4_MPEG2_STREAM_TYPE_ATSC_EAC3;
                 }
-                stream_id   = AP4_MPEG2_TS_STREAM_ID_PRIVATE_STREAM_1;
+                stream_id = AP4_MPEG2_TS_STREAM_ID_PRIVATE_STREAM_1;
             } else {
-                fprintf(stderr, "ERROR: audio codec not supported\n");
-                return 1;
+                sprintf(msg, "ERROR: audio codec not supported\n");
+                __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
+                return msg;
             }
             if (stream_type == AP4_MPEG2_STREAM_TYPE_ATSC_EAC3) {
                 // E-AC-3 descriptor
                 unsigned int number_of_channels = 0;
                 AP4_String track_language;
-                AP4_Dec3Atom* dec3 = AP4_DYNAMIC_CAST(AP4_Dec3Atom, sample_description->GetDetails().GetChild(AP4_ATOM_TYPE_DEC3));
+                AP4_Dec3Atom *dec3 = AP4_DYNAMIC_CAST(AP4_Dec3Atom,
+                                                      sample_description->GetDetails().GetChild(
+                                                              AP4_ATOM_TYPE_DEC3));
                 AP4_BitWriter bits(8);
                 bits.Write(0xCC, 8);
                 bits.Write(0x06, 8);    // fixed value
-                bits.Write(0xC0, 8);    // reserved, bsid_flag, mainid_flag, asvc_flag, mixinfoexists, substream1_flag, substream2_flag and substream3_flag 
+                bits.Write(0xC0,
+                           8);    // reserved, bsid_flag, mainid_flag, asvc_flag, mixinfoexists, substream1_flag, substream2_flag and substream3_flag
                 bits.Write(24, 5);      // reserved, full_service_flag and service_type
                 if (dec3->GetSubStreams()[0].acmod == 0) {
                     number_of_channels = 1;
@@ -2090,7 +2100,8 @@ main(int argc, char** argv)
                     number_of_channels = 5;
                 }
                 bits.Write(number_of_channels, 3);              // number_of_channels
-                bits.Write(4, 3);                               // language_flag, language_flag_2, reserved
+                bits.Write(4,
+                           3);                               // language_flag, language_flag_2, reserved
                 bits.Write(dec3->GetSubStreams()[0].bsid, 5);   // bsid
                 track_language = audio_track->GetTrackLanguage();
                 if (track_language.GetLength() == 3) {
@@ -2102,7 +2113,7 @@ main(int argc, char** argv)
                     bits.Write(0x6E, 8);
                     bits.Write(0x64, 8);
                 }
-                 // setup the audio stream
+                // setup the audio stream
                 result = ts_writer->SetAudioStream(audio_track->GetMediaTimeScale(),
                                                    stream_type,
                                                    stream_id,
@@ -2111,32 +2122,36 @@ main(int argc, char** argv)
                                                    bits.GetData(), 8,
                                                    HlsOptions.pcr_offset);
             } else {
-            // setup the audio stream
-            result = ts_writer->SetAudioStream(audio_track->GetMediaTimeScale(),
-                                               stream_type,
-                                               stream_id,
-                                               audio_stream,
-                                               HlsOptions.audio_pid,
-                                               NULL, 0,
-                                               HlsOptions.pcr_offset);
+                // setup the audio stream
+                result = ts_writer->SetAudioStream(audio_track->GetMediaTimeScale(),
+                                                   stream_type,
+                                                   stream_id,
+                                                   audio_stream,
+                                                   HlsOptions.audio_pid,
+                                                   NULL, 0,
+                                                   HlsOptions.pcr_offset);
             }
             if (AP4_FAILED(result)) {
-                fprintf(stderr, "could not create audio stream (%d)\n", result);
+                sprintf(msg, "could not create audio stream (%d)\n", result);
                 goto end;
             }
         }
-        
+
         // add the video stream
         if (video_track) {
+            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
+                                "=================1111===================");
+
             sample_description = video_track->GetSampleDescription(0);
             if (sample_description == NULL) {
-                fprintf(stderr, "ERROR: unable to parse video sample description\n");
+                sprintf(msg, "ERROR: unable to parse video sample description\n");
+                __android_log_print(ANDROID_LOG_DEBUG, "TAG", "Hls version=%s", msg);
                 goto end;
             }
-            
+
             // decide on the stream type
             unsigned int stream_type = 0;
-            unsigned int stream_id   = AP4_MPEG2_TS_DEFAULT_STREAM_ID_VIDEO;
+            unsigned int stream_id = AP4_MPEG2_TS_DEFAULT_STREAM_ID_VIDEO;
             if (sample_description->GetFormat() == AP4_SAMPLE_FORMAT_AVC1 ||
                 sample_description->GetFormat() == AP4_SAMPLE_FORMAT_AVC2 ||
                 sample_description->GetFormat() == AP4_SAMPLE_FORMAT_AVC3 ||
@@ -2145,10 +2160,11 @@ main(int argc, char** argv)
                 sample_description->GetFormat() == AP4_SAMPLE_FORMAT_DVA1) {
                 if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES) {
                     stream_type = AP4_MPEG2_STREAM_TYPE_SAMPLE_AES_AVC;
-                    AP4_AvcSampleDescription* avc_desc = AP4_DYNAMIC_CAST(AP4_AvcSampleDescription, sample_description);
+                    AP4_AvcSampleDescription *avc_desc = AP4_DYNAMIC_CAST(AP4_AvcSampleDescription,
+                                                                          sample_description);
                     if (avc_desc == NULL) {
-                        fprintf(stderr, "ERROR: not a proper AVC track\n");
-                        return 1;
+                        sprintf(msg, "ERROR: not a proper AVC track\n");
+                        return msg;
                     }
                     nalu_length_size = avc_desc->GetNaluLengthSize();
                 } else {
@@ -2160,16 +2176,20 @@ main(int argc, char** argv)
                        sample_description->GetFormat() == AP4_SAMPLE_FORMAT_DVH1) {
                 stream_type = AP4_MPEG2_STREAM_TYPE_HEVC;
             } else {
-                fprintf(stderr, "ERROR: video codec not supported\n");
-                return 1;
+                sprintf(msg, "ERROR: video codec not supported\n");
+                __android_log_print(ANDROID_LOG_DEBUG, "TAG", "ERROR: video codec not supported");
+                return msg;
             }
             if (HlsOptions.encryption_mode == ENCRYPTION_MODE_SAMPLE_AES) {
                 if (stream_type != AP4_MPEG2_STREAM_TYPE_SAMPLE_AES_AVC) {
-                    fprintf(stderr, "ERROR: AES-SAMPLE encryption can only be used with H.264 video\n");
-                    return 1;
+                    sprintf(msg,
+                            "ERROR: AES-SAMPLE encryption can only be used with H.264 video\n");
+                    return msg;
                 }
             }
-            
+            __android_log_print(ANDROID_LOG_DEBUG, "TAG",
+                                "=================2222===================");
+
             // setup the video stream
             result = ts_writer->SetVideoStream(video_track->GetMediaTimeScale(),
                                                stream_type,
@@ -2179,107 +2199,117 @@ main(int argc, char** argv)
                                                NULL, 0,
                                                HlsOptions.pcr_offset);
             if (AP4_FAILED(result)) {
-                fprintf(stderr, "could not create video stream (%d)\n", result);
+                sprintf(msg, "could not create video stream (%d)\n", result);
+                __android_log_print(ANDROID_LOG_DEBUG, "TAG",
+                                    "=================3333===================:%s", msg);
+
                 goto end;
             }
         }
     }
-    
+
     result = WriteSamples(ts_writer, packed_writer,
                           audio_track, audio_reader, audio_stream,
                           video_track, video_reader, video_stream,
                           HlsOptions.segment_duration_threshold,
                           nalu_length_size);
+
     if (AP4_FAILED(result)) {
-        sprintf(msg, "ERROR: failed to write samples3 (%d)\n", result);
-        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "-----------------------------");
+        sprintf(msg, "ERROR: failed to write samples2 (%d)\n", result);
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "写入对象创建失败::%s", msg);
+        __android_log_print(ANDROID_LOG_DEBUG, "TAG", "AP4_FAILED:%s", msg);
+
+        return msg;
     }
 
     if (HlsOptions.show_info) {
         double average_segment_bitrate = 0.0;
         if (Stats.segments_total_duration != 0.0) {
-            average_segment_bitrate = 8.0*(double)Stats.segments_total_size/Stats.segments_total_duration;
+            average_segment_bitrate =
+                    8.0 * (double) Stats.segments_total_size / Stats.segments_total_duration;
         }
         double average_iframe_bitrate = 0.0;
         if (Stats.segments_total_duration != 0.0) {
-            average_iframe_bitrate = 8.0*(double)Stats.iframes_total_size/Stats.segments_total_duration;
+            average_iframe_bitrate =
+                    8.0 * (double) Stats.iframes_total_size / Stats.segments_total_duration;
         }
 
         double frame_rate = 0.0;
         if (video_track && (Stats.segments_total_duration != 0.0)) {
-            double sample_count = (double)video_track->GetSampleCount();
-            double media_duration = (double)video_track->GetMediaDuration();
-            double timescale = (double)video_track->GetMediaTimeScale();
+            double sample_count = (double) video_track->GetSampleCount();
+            double media_duration = (double) video_track->GetMediaDuration();
+            double timescale = (double) video_track->GetMediaTimeScale();
             if (media_duration > 0.0) {
-                frame_rate = sample_count/(media_duration/timescale);
+                frame_rate = sample_count / (media_duration / timescale);
             }
         }
 
         printf(
-            "{\n"
+                "{\n"
         );
         printf(
-            "  \"stats\": {\n"
-            "    \"duration\": %f,\n"
-            "    \"avg_segment_bitrate\": %f,\n"
-            "    \"max_segment_bitrate\": %f,\n"
-            "    \"avg_iframe_bitrate\": %f,\n"
-            "    \"max_iframe_bitrate\": %f,\n"
-            "    \"frame_rate\": %f\n"
-            "  }",
-            (double)movie->GetDurationMs()/1000.0,
-            average_segment_bitrate,
-            Stats.max_segment_bitrate,
-            average_iframe_bitrate,
-            Stats.max_iframe_bitrate,
-            frame_rate
+                "  \"stats\": {\n"
+                "    \"duration\": %f,\n"
+                "    \"avg_segment_bitrate\": %f,\n"
+                "    \"max_segment_bitrate\": %f,\n"
+                "    \"avg_iframe_bitrate\": %f,\n"
+                "    \"max_iframe_bitrate\": %f,\n"
+                "    \"frame_rate\": %f\n"
+                "  }",
+                (double) movie->GetDurationMs() / 1000.0,
+                average_segment_bitrate,
+                Stats.max_segment_bitrate,
+                average_iframe_bitrate,
+                Stats.max_iframe_bitrate,
+                frame_rate
         );
         if (audio_track) {
             AP4_String codec;
-            AP4_SampleDescription* sdesc = audio_track->GetSampleDescription(0);
+            AP4_SampleDescription *sdesc = audio_track->GetSampleDescription(0);
             if (sdesc) {
                 sdesc->GetCodecString(codec);
             }
             printf(
-                ",\n"
-                "  \"audio\": {\n"
-                "    \"codec\": \"%s\"\n"
-                "  }",
-                codec.GetChars()
+                    ",\n"
+                    "  \"audio\": {\n"
+                    "    \"codec\": \"%s\"\n"
+                    "  }",
+                    codec.GetChars()
             );
         }
         if (video_track) {
             AP4_String codec;
-            AP4_UI16 width = (AP4_UI16)(video_track->GetWidth()/65536.0);
-            AP4_UI16 height = (AP4_UI16)(video_track->GetHeight()/65536.0);
-            AP4_SampleDescription* sdesc = video_track->GetSampleDescription(0);
+            AP4_UI16 width = (AP4_UI16) (video_track->GetWidth() / 65536.0);
+            AP4_UI16 height = (AP4_UI16) (video_track->GetHeight() / 65536.0);
+            AP4_SampleDescription *sdesc = video_track->GetSampleDescription(0);
             if (sdesc) {
                 sdesc->GetCodecString(codec);
-                AP4_VideoSampleDescription* video_desc = AP4_DYNAMIC_CAST(AP4_VideoSampleDescription, sdesc);
+                AP4_VideoSampleDescription *video_desc = AP4_DYNAMIC_CAST(
+                        AP4_VideoSampleDescription, sdesc);
                 if (video_desc) {
                     width = video_desc->GetWidth();
                     height = video_desc->GetHeight();
                 }
             }
             printf(
-                ",\n"
-                "  \"video\": {\n"
-                "    \"codec\": \"%s\",\n"
-                "    \"width\": %d,\n"
-                "    \"height\": %d\n"
-                "  }",
-                codec.GetChars(),
-                width,
-                height
+                    ",\n"
+                    "  \"video\": {\n"
+                    "    \"codec\": \"%s\",\n"
+                    "    \"width\": %d,\n"
+                    "    \"height\": %d\n"
+                    "  }",
+                    codec.GetChars(),
+                    width,
+                    height
             );
         }
         printf(
-            "\n"
-            "}\n"
+                "\n"
+                "}\n"
         );
     }
-    
-end:
+
+    end:
     delete ts_writer;
     delete packed_writer;
     delete input_file;
@@ -2287,7 +2317,13 @@ end:
     delete linear_reader;
     delete audio_reader;
     delete video_reader;
-    
-    return result == AP4_SUCCESS?0:1;
+
+
+    auto hs = std::chrono::steady_clock::now();
+    auto cs = std::chrono::duration_cast<std::chrono::milliseconds>(hs - t).count();
+    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "视频转换耗时:%lld ms", cs);
+
+    return result == AP4_SUCCESS ? "success" : "failure";
 }
+
 

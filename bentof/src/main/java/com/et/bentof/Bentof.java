@@ -6,7 +6,7 @@ public class Bentof {
 
     public native String mp42hls(String mp4InputPath,String outDirectory, String outFileName, String outTsName);
 
-    public native String mp42ts();
+    public native String mp42ts(String inputMp4Path, String outTsPath);
 
     private static class Holder {
         private static final Bentof ins = new Bentof();

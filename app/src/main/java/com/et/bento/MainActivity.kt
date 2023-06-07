@@ -44,21 +44,27 @@ class MainActivity : AppCompatActivity() {
             sleep(500)
             // 准备视频文件
             FileUtils.assetsCopyTo(applicationContext, assetsName, directory!!)
-            sleep(1500)
+            sleep(500)
             // H.264封装MP4
             val muxResult = Bentof.getInstance().mp4mux(
                 File(directory, assetsName).absolutePath,
                 File(directory, "h5_mux.mp4").absolutePath
             )
             Log.d("TAG", "MuxResult=$muxResult")
-            sleep(1500)
+            sleep(500)
             val hlsResult = Bentof.getInstance().mp42hls(
                 File(directory, "h5_mux.mp4").absolutePath,
-                directory!!.absolutePath,
+                directory!!.absolutePath + File.separator,
                 "h5_hls.m3u8",
                 "h5_ts_%05d.ts"
             )
             Log.d("TAG", "HlsResult=$hlsResult")
+
+            sleep(500)
+            val tsResult = Bentof.getInstance().mp42ts(File(directory, "h5_mux.mp4").absolutePath, File(directory,"h5_mux_ts.ts").absolutePath);
+            Log.d("TAG", "TSResult=$tsResult")
+
+
         }.start()
     }
 

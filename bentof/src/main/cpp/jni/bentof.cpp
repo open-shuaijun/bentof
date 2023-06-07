@@ -74,22 +74,18 @@ Java_com_et_bentof_Bentof_mp42hls(JNIEnv *env, jobject /* this */, jstring mp4_s
 
 
 extern "C" JNIEXPORT jstring
-Java_com_et_bentof_Bentof_mp42ts(JNIEnv *env, jobject /* this */) {
+Java_com_et_bentof_Bentof_mp42ts(JNIEnv *env, jobject /* this */, jstring input_mp4, jstring out_ts) {
+    const char* c_input_mp4 = env->GetStringUTFChars(input_mp4, JNI_FALSE);
+    const char* c_out_ts = env->GetStringUTFChars(out_ts, JNI_FALSE);
     string pro = "ts";
-    string src = "/sdcard/out.mp4";
-    string out = "/sdcard/out2.ts";
-    char *params[] = {const_cast<char *>(pro.c_str()), const_cast<char *>(src.c_str()),
-                      const_cast<char *>(out.c_str()),
+    char *params[] = {const_cast<char *>(pro.c_str()),
+                      const_cast<char *>(c_input_mp4),
+                      const_cast<char *>(c_out_ts),
                       const_cast<char *>(pro.c_str())};
     char **pp = params;
     string ret = Mp42Ts::getInstance().mp42ts(3, pp);
-    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "Ts:%s", ret.c_str());
+    __android_log_print(ANDROID_LOG_DEBUG, "TAG", "视频转换TS完成:%s", ret.c_str());
+    env->ReleaseStringUTFChars(input_mp4, c_input_mp4);
+    env->ReleaseStringUTFChars(out_ts, c_out_ts);
     return env->NewStringUTF(ret.c_str());
-}
-
-extern "C" JNIEXPORT void
-Java_com_et_bento_MainActivity_openFile(JNIEnv *env, jobject /* this */) {
-//    const char *src = "/sdcard/ou.mp4";
-//    FILE *ff = fopen(src, "wb+");
-//    __android_log_print(ANDROID_LOG_DEBUG, "ddd", "bbbbbbb=%p", ff);
 }
